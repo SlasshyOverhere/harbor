@@ -11,6 +11,7 @@ import { StremioRail } from "@/chrome/stremio-rail";
 import { TopDock } from "@/chrome/topdock";
 import { Topbar } from "@/chrome/topbar";
 import { startMaintenance, subscribeMemoryPressure } from "@/lib/maintenance";
+import { setNativeMemoryActive } from "@/lib/native-memory";
 import { useOverlayPinned } from "@/lib/overlay-pin";
 import { isMobileDevice, isWeb } from "@/lib/platform";
 import { activeLayout } from "@/lib/theme";
@@ -35,17 +36,12 @@ import { TogetherParticipantLeftToast } from "@/components/together-participant-
 import { TogetherLeaveForLiveModal } from "@/components/together-leave-for-live-modal";
 import { ThemeBackdrop } from "@/components/theme-backdrop";
 import { TopRankModal } from "@/components/top-rank-modal";
-import { useAuth, AuthProvider } from "@/lib/auth";
+import { AuthProvider } from "@/lib/auth";
 import { ProfilesProvider } from "@/lib/profiles";
 import { ProfileIdentitySync } from "@/lib/profile-identity-sync";
 import { ProfilePickerModal } from "@/components/profile-picker/picker-modal";
 import { WatchlistSync } from "@/lib/watchlist-sync";
 import { ContextMenuProvider } from "@/lib/context-menu";
-import {
-  setDebugInvokeRunner,
-  setDebugPipelineRunner,
-  setDebugStateProvider,
-} from "@/lib/debug-bridge";
 import { TopRankModalProvider } from "@/lib/top-rank-modal";
 import { OnboardingProvider } from "@/lib/onboarding";
 import { RankingsProvider } from "@/lib/rankings";
@@ -58,7 +54,6 @@ import { FavoritesProvider } from "@/lib/iptv/favorites";
 import { useSettings } from "@/lib/settings";
 import { ViewProvider, useView, type Frame, type MetaFilter, type View } from "@/lib/view";
 import { useDiscordPresence } from "@/lib/discord/use-discord-presence";
-import { invoke } from "@tauri-apps/api/core";
 import { Home } from "@/views/home";
 import { ParentalProvider } from "@/lib/parental";
 import { TraktProvider } from "@/lib/trakt/provider";
@@ -210,7 +205,7 @@ export function App() {
                       <TogetherParticipantLeftToast />
                       <TogetherLeaveForLiveModal />
                       <TogetherLocationPublisher />
-                      <DebugWiring />
+                      <DiscordPresence />
                       <ContextMenu />
                       <TopRankModal />
                       <ProfilePickerModal />
@@ -321,250 +316,9 @@ function TogetherLocationPublisher() {
   return null;
 }
 
-function DebugWiring() {
-  const view = useView();
-  const { settings } = useSettings();
-  const { user, authKey } = useAuth();
-  const together = useTogether();
+function DiscordPresence() {
   useDiscordPresence();
-
-  useEffect(() => {
-    setDebugStateProvider(() => buildDebugSnapshot());
-    return () => {
-      setDebugStateProvider(null);
-    };
-    function buildDebugSnapshot() {
-      const t = together.snapshot;
-      return {
-        timestampMs: Date.now(),
-        view: {
-          topKind: view.topKind,
-          topPath: view.topPath,
-          metaId: view.meta?.id ?? null,
-          metaTitle: view.meta?.name ?? null,
-          metaType: view.meta?.type ?? null,
-          personId: view.personId,
-          service: view.service,
-          addonDetailId: view.addonDetailId,
-          filter: view.filter,
-          picker: view.picker
-            ? {
-                metaId: view.picker.meta.id,
-                metaTitle: view.picker.meta.name,
-                episode: view.picker.episode ?? null,
-                autoPlay: view.picker.autoPlay ?? false,
-                attempt: view.picker.attempt ?? 0,
-              }
-            : null,
-          player: view.player
-            ? {
-                url: view.player.url.slice(0, 200),
-                metaId: view.player.meta.id,
-                metaTitle: view.player.meta.name,
-                episode: view.player.episode ?? null,
-                notWebReady: view.player.notWebReady ?? false,
-                streamRef: view.player.streamRef ?? null,
-              }
-            : null,
-          chromeHidden: view.chromeHidden,
-        },
-        auth: {
-          signedIn: !!authKey,
-          user: user ? { email: user.email, fullname: user.fullname ?? null } : null,
-        },
-        settings: scrubSettings(settings),
-        together: {
-          state: t.state,
-          room: t.room,
-          hostClientId: t.hostClientId,
-          selfClientId: together.clientId,
-          isHost: t.hostClientId === together.clientId,
-          participants: t.participants.map((p) => ({
-            id: p.id,
-            name: p.name,
-            ready: p.ready,
-            joinedAt: p.joinedAt,
-          })),
-          syncState: t.syncState,
-          hostLocation: together.hostLocation,
-          chatCount: together.chat.length,
-          enabled: together.enabled,
-        },
-      };
-    }
-  }, [
-    view.topKind,
-    view.topPath,
-    view.meta?.id,
-    view.personId,
-    view.service,
-    view.addonDetailId,
-    view.picker?.meta.id,
-    view.player?.url,
-    view.chromeHidden,
-    settings,
-    user,
-    authKey,
-    together.snapshot,
-    together.hostLocation,
-    together.clientId,
-    together.chat.length,
-    together.enabled,
-  ]);
-
-  useEffect(() => {
-    setDebugInvokeRunner(async (cmd, args) => {
-      const allowed = new Set([
-        "mpv_probe",
-        "mpv_get_property",
-        "thumbs_get",
-        "harbor_fetch",
-      ]);
-      if (!allowed.has(cmd)) {
-        return { error: `command "${cmd}" not whitelisted for debug invoke` };
-      }
-      try {
-        return { ok: true, data: await invoke(cmd, args as Record<string, unknown>) };
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    });
-    return () => {
-      setDebugInvokeRunner(null);
-    };
-  }, [view.topKind]);
-
-  useEffect(() => {
-    setDebugPipelineRunner(async (req) => {
-      try {
-        const [pipelineMod, addonsMod, debridMod, cinemetaMod] = await Promise.all([
-          import("@/lib/streams/pipeline"),
-          import("@/lib/addons"),
-          import("@/lib/debrid/registry"),
-          import("@/lib/cinemeta"),
-        ]);
-        const addons = authKey ? await addonsMod.userAddons(authKey).catch(() => []) : [];
-        const debrids = debridMod.buildDebridClients({
-          rdKey: settings.rdKey,
-          tbKey: settings.tbKey,
-          adKey: settings.adKey,
-          pmKey: settings.pmKey,
-          dlKey: settings.dlKey,
-        });
-        const meta = await cinemetaMod
-          .meta(req.mediaType === "series" ? "series" : "movie", req.metaId)
-          .catch(() => null);
-        const ac = new AbortController();
-        const fullId =
-          req.mediaType === "series" && req.season != null && req.episode != null
-            ? `${req.metaId}:${req.season}:${req.episode}`
-            : req.metaId;
-        const result = await pipelineMod.runPipeline(
-          {
-            request: {
-              type: req.mediaType === "series" ? "series" : "movie",
-              ids: [fullId],
-            },
-            query: {
-              type: req.mediaType === "series" ? "series" : "movie",
-              imdbId: req.metaId,
-              title: meta?.name ?? "",
-              year: meta?.releaseInfo ? parseInt(meta.releaseInfo, 10) || undefined : undefined,
-              season: req.season ?? undefined,
-              episode: req.episode ?? undefined,
-            },
-            addons,
-            debrids,
-            isAnime: req.metaId.startsWith("kitsu:") || req.metaId.startsWith("mal:"),
-            trust: {
-              kind: req.episode ? "series" : "movie",
-              expectedTitle: meta?.name,
-              releaseDate: meta?.releaseDate ?? null,
-              expectedYear: meta?.releaseInfo ? parseInt(meta.releaseInfo, 10) || null : null,
-              expectedSeason: req.season ?? null,
-              expectedEpisode: req.episode ?? null,
-              strict: true,
-              preferredLanguages: settings.preferredLanguages,
-            },
-            score: {
-              activeDebrids: debrids.map((d) => d.slug),
-              preferredLanguages: settings.preferredLanguages,
-              releaseDate: meta?.releaseDate ?? null,
-              mediaKind: req.episode ? "series" : "movie",
-              runtimeMinutes: meta?.runtime ? parseInt(meta.runtime, 10) || undefined : undefined,
-              inTheaters: meta?.inTheaters === true,
-            },
-          },
-          ac.signal,
-        );
-        return {
-          parsedCount: result.picker.all.length,
-          rejectedCount: result.rejected.length,
-          rawCounts: {
-            library: result.raw.library.length,
-            addon: result.raw.addon.length,
-          },
-          picker: {
-            primary: result.picker.primary
-              ? summarizeStream(result.picker.primary as unknown as Record<string, unknown>)
-              : null,
-            byTier: Object.fromEntries(
-              Object.entries(result.picker.byTier).map(([k, v]) => [
-                k,
-                v ? summarizeStream(v as unknown as Record<string, unknown>) : null,
-              ]),
-            ),
-            top10: result.picker.all
-              .slice(0, 10)
-              .map((s) => summarizeStream(s as unknown as Record<string, unknown>)),
-          },
-          rejected: result.rejected.slice(0, 30).map((r) => ({
-            reason: r.reason,
-            title: r.stream.parsedTitle ?? r.stream.title ?? r.stream.name ?? null,
-            addon: r.stream.addonName ?? null,
-          })),
-        };
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    });
-    return () => {
-      setDebugPipelineRunner(null);
-    };
-  }, [authKey, settings, view.topKind]);
-
   return null;
-}
-
-function summarizeStream(s: Record<string, unknown>) {
-  const cached = s.cached as Record<string, boolean> | undefined;
-  return {
-    title: (s.parsedTitle ?? s.title ?? s.name ?? null) as string | null,
-    addon: s.addonName as string | null,
-    resolution: s.resolution as string | null,
-    source: s.source as string | null,
-    codec: s.codec as string | null,
-    sizeMb: typeof s.size === "number" ? Math.round(s.size / 1024 / 1024) : null,
-    seeders: s.seeders as number | null,
-    cached: cached ?? {},
-    score: s.score as number | null,
-    tier: s.tier as string | null,
-    infoHash: s.infoHash as string | null,
-    fileIdx: s.fileIdx as number | null,
-    contributors: s.contributors as Array<{ id: string; name: string }> | undefined,
-  };
-}
-
-function scrubSettings(settings: ReturnType<typeof useSettings>["settings"]) {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(settings)) {
-    if (/key|token|secret|password|apikey/i.test(k) && typeof v === "string" && v.length > 0) {
-      out[k] = `[REDACTED:${v.length}chars]`;
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
 }
 
 function filterReactKey(f: MetaFilter): string {
@@ -632,6 +386,7 @@ function Shell() {
   }, [topKind, settings.hideContent.anime, setView]);
 
   const playerActive = !!player;
+  useEffect(() => setNativeMemoryActive(playerActive), [playerActive]);
   const pickerTop = topKind === "picker";
   const personTop = topKind === "person";
   const detailTop = topKind === "meta";

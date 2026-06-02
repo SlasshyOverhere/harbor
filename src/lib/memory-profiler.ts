@@ -1,3 +1,5 @@
+import { getNativeMem, getRamTier } from "./native-memory";
+
 type MemoryStats = {
   usedJSHeapSize: number;
   totalJSHeapSize: number;
@@ -141,6 +143,12 @@ function buildDumpText(): string {
   lines.push(`  videos:        ${dom.vids}`);
   lines.push(`  net downloaded: ${bytesToMB(networkBytes).toFixed(2)} MB`);
   lines.push(`  total events:  ${eventsSinceReset.length}`);
+  const nm = getNativeMem();
+  if (nm.total > 0) {
+    lines.push(
+      `  RSS total:     ${nm.total.toFixed(0)} MB (Harbor.exe ${nm.harborRss.toFixed(0)} + webview ${nm.webviewRss.toFixed(0)}) tier ${getRamTier()}`,
+    );
+  }
   lines.push("");
 
   lines.push("TOP MEMORY JUMPS (>3MB between consecutive events)");

@@ -2,7 +2,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/App";
-import { bootstrapDebugBridge, isDebugBridgeEnabled } from "@/lib/debug-bridge";
 import { isLinuxDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/platform";
 import { ModalOverlayApp } from "@/views/modal-overlay-app";
 import { PipApp } from "@/views/pip";
@@ -48,26 +47,6 @@ if (!isPip && !isModal) {
         : "web";
 }
 if (import.meta.env.DEV) console.log("[harbor] entry: pip =", isPip, "modal =", isModal, "label =", (() => { try { return getCurrentWindow().label; } catch { return "?"; } })());
-if (!isPip && !isModal) {
-  void (async () => {
-    if (isDebugBridgeEnabled()) {
-      bootstrapDebugBridge();
-      console.log("[harbor-debug] bridge enabled (localStorage flag)");
-      return;
-    }
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const enabled = await invoke<boolean>("harbor_debug_is_enabled").catch(() => false);
-      if (enabled) {
-        const w = window as Window & { __HARBOR_DEBUG__?: boolean };
-        w.__HARBOR_DEBUG__ = true;
-        const mod = await import("@/lib/debug-bridge");
-        mod.bootstrapDebugBridge();
-        console.log("[harbor-debug] bridge enabled (HARBOR_DEBUG env)");
-      }
-    } catch {}
-  })();
-}
 if (import.meta.env.DEV && !isPip && !isModal) {
   void import("./lib/streams/__fixtures__/verify").then((m) => m.logVerificationReport());
 }

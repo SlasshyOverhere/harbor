@@ -12,6 +12,7 @@ export class HarborErrorBoundary extends Component<{ children: ReactNode }, Stat
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     showHarborError({
+      fatal: true,
       code: error.name || "Crash",
       title: "Crash",
       message:

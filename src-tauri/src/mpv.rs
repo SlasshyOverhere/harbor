@@ -245,6 +245,7 @@ pub async fn mpv_start(
             let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
             let _ = app.run_on_main_thread(move || {
                 let _ = crate::mpv_render_mac::uninstall();
+                let _ = prev.mpv.command("quit", &[]);
                 drop(prev);
                 let _ = tx.send(());
             });
@@ -252,6 +253,7 @@ pub async fn mpv_start(
         }
         #[cfg(not(target_os = "macos"))]
         {
+            let _ = prev.mpv.command("quit", &[]);
             drop(prev);
         }
     }
@@ -332,11 +334,11 @@ pub async fn mpv_start(
         }
     }
     let _ = mpv.set_property("cache", "yes");
-    let _ = mpv.set_property("cache-secs", "90");
+    let _ = mpv.set_property("cache-secs", "60");
     let _ = mpv.set_property("cache-pause", "no");
-    let _ = mpv.set_property("demuxer-max-bytes", "256MiB");
-    let _ = mpv.set_property("demuxer-max-back-bytes", "64MiB");
-    let _ = mpv.set_property("demuxer-readahead-secs", "90");
+    let _ = mpv.set_property("demuxer-max-bytes", "128MiB");
+    let _ = mpv.set_property("demuxer-max-back-bytes", "32MiB");
+    let _ = mpv.set_property("demuxer-readahead-secs", "60");
     if let Ok(base) = app.path().app_cache_dir() {
         let dvr = base.join("mpv-cache");
         let _ = std::fs::create_dir_all(&dvr);
@@ -347,7 +349,7 @@ pub async fn mpv_start(
     let _ = mpv.set_property("cache-on-disk", "yes");
     let _ = mpv.set_property("network-timeout", "600");
     let _ = mpv.set_property("stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=10,reconnect_on_network_error=1");
-    let _ = mpv.set_property("stream-buffer-size", "64MiB");
+    let _ = mpv.set_property("stream-buffer-size", "32MiB");
     if want_embed {
         let _ = mpv.set_property("sub-visibility", "no");
         let _ = mpv.set_property("secondary-sub-visibility", "no");
@@ -390,6 +392,7 @@ pub async fn mpv_start(
 
 fn spawn_event_loop(app: AppHandle, mpv_keepalive: Arc<Mpv>, mut ctx: EventContext) {
     std::thread::spawn(move || {
+        let mut last_timepos: Option<std::time::Instant> = None;
         loop {
             let res = ctx.wait_event(0.5);
             match res {
@@ -400,6 +403,17 @@ fn spawn_event_loop(app: AppHandle, mpv_keepalive: Arc<Mpv>, mut ctx: EventConte
                     }
                     if let Event::EndFile(reason) = &event {
                         eprintln!("[harbor::mpv] end-file reason={:?}", reason);
+                    }
+                    if let Event::PropertyChange { name, .. } = &event {
+                        if *name == "time-pos" {
+                            let now = std::time::Instant::now();
+                            if let Some(prev) = last_timepos {
+                                if now.duration_since(prev).as_millis() < 200 {
+                                    continue;
+                                }
+                            }
+                            last_timepos = Some(now);
+                        }
                     }
                     let payload = event_to_payload(event);
                     if let Some(p) = payload {

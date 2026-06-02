@@ -168,6 +168,7 @@ import { useStreamSwitcher } from "./player/hooks/use-stream-switcher";
 import { useMpvEmbed } from "./player/hooks/use-mpv-embed";
 import { setPlaybackPresence } from "@/lib/discord/presence";
 import { usePlayerBridge } from "./player/hooks/use-player-bridge";
+import { useWebviewMemory } from "./player/hooks/use-webview-memory";
 import { useEpisodeNavigation } from "./player/hooks/use-episode-navigation";
 import { useAbLoop } from "./player/hooks/use-ab-loop";
 import { useAutoNextEpisode } from "./player/hooks/use-auto-next-episode";
@@ -243,6 +244,7 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
     src,
     settings,
   });
+  useWebviewMemory(engine === "mpv");
   const volumeRestoredRef = useRef(false);
   useEffect(() => {
     if (!bridgeReady) {

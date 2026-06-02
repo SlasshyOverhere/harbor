@@ -8,6 +8,7 @@ export type HarborError = {
   title: string;
   message: string;
   detail?: string;
+  fatal?: boolean;
 };
 
 export function showHarborError(error: HarborError): void {
@@ -92,7 +93,9 @@ export function ErrorView() {
   useEffect(() => {
     if (!error) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setError(null);
+      if (e.key !== "Escape") return;
+      if (error?.fatal) window.location.reload();
+      else setError(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -122,6 +125,14 @@ export function ErrorView() {
   const reload = useCallback(() => {
     window.location.reload();
   }, []);
+
+  const goBack = useCallback(() => {
+    if (error?.fatal) {
+      window.location.reload();
+      return;
+    }
+    dismiss();
+  }, [error, dismiss]);
 
   if (!error) return null;
 
@@ -172,7 +183,7 @@ export function ErrorView() {
         <div className="mt-1 flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={dismiss}
+            onClick={goBack}
             className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-5 text-[13.5px] font-semibold text-canvas transition-colors hover:bg-accent/90"
           >
             <ArrowLeftIcon className="h-[16px] w-[16px]" />

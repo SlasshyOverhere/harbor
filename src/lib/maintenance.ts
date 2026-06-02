@@ -1,3 +1,12 @@
+import {
+  getNativeRssMB,
+  getRamTier,
+  startNativeMemory,
+  subscribeNativeMemory,
+  type RamTier,
+} from "./native-memory";
+import { pulseWebviewMemoryLow } from "./webview-memory";
+
 type Evictor = (aggressive: boolean) => void;
 
 const evictors = new Map<string, Evictor>();
@@ -44,6 +53,19 @@ function readHeapMB(): number | null {
   return mem ? mem.usedJSHeapSize / (1024 * 1024) : null;
 }
 
+function tierCeilingMB(tier: RamTier): number {
+  switch (tier) {
+    case "tiny":
+      return 700;
+    case "low":
+      return 1100;
+    case "mid":
+      return 1600;
+    default:
+      return 2500;
+  }
+}
+
 function setPressure(high: boolean): void {
   if (high === pressureHigh) return;
   pressureHigh = high;
@@ -52,10 +74,20 @@ function setPressure(high: boolean): void {
       cb(high);
     } catch {}
   }
-  if (high) runMaintenance(true);
+  if (high) {
+    runMaintenance(true);
+    pulseWebviewMemoryLow();
+  }
 }
 
 function pollPressure(): void {
+  const rss = getNativeRssMB();
+  if (rss > 0) {
+    const ceiling = tierCeilingMB(getRamTier());
+    if (!pressureHigh && rss > ceiling) setPressure(true);
+    else if (pressureHigh && rss < ceiling * 0.7) setPressure(false);
+    return;
+  }
   const mb = readHeapMB();
   if (mb == null) return;
   if (!pressureHigh && mb > PRESSURE_HIGH_MB) setPressure(true);
@@ -90,6 +122,8 @@ export function startMaintenance(): () => void {
   }, INTERVAL_MS);
 
   const pressureInterval = window.setInterval(pollPressure, PRESSURE_POLL_MS);
+  const stopNative = startNativeMemory();
+  const unsubNative = subscribeNativeMemory(pollPressure);
 
   let hiddenTimer: number | null = null;
   const onVisibility = () => {
@@ -106,6 +140,8 @@ export function startMaintenance(): () => void {
     started = false;
     window.clearInterval(interval);
     window.clearInterval(pressureInterval);
+    stopNative();
+    unsubNative();
     if (hiddenTimer != null) window.clearTimeout(hiddenTimer);
     document.removeEventListener("visibilitychange", onVisibility);
   };

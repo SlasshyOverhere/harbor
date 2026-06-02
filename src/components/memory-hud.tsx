@@ -8,6 +8,7 @@ import {
   subscribeProfiler,
   type Sample,
 } from "@/lib/memory-profiler";
+import { getNativeMem, getRamTier } from "@/lib/native-memory";
 
 const STORAGE_KEY = "harbor.memoryHud.open";
 
@@ -126,6 +127,7 @@ export function MemoryHud() {
         </div>
       </div>
 
+      <NativeLine />
       {!collapsed && (
         <>
           <DomLine />
@@ -139,6 +141,25 @@ export function MemoryHud() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+function NativeLine() {
+  const m = getNativeMem();
+  const tier = getRamTier();
+  if (m.total <= 0) return null;
+  const color = m.total > 1800 ? "#ff7676" : m.total > 1200 ? "#ffb866" : "#7eea9f";
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-edge-soft pt-1.5">
+      <span className="font-bold text-ink">RSS</span>
+      <span>
+        <span style={{ color }}>{m.total.toFixed(0)}MB</span>
+        <span className="text-ink-subtle">
+          {" "}
+          · hb {m.harborRss.toFixed(0)} · wv {m.webviewRss.toFixed(0)} · {tier}
+        </span>
+      </span>
     </div>
   );
 }

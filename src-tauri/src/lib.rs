@@ -3,7 +3,6 @@ mod cast;
 mod cast_hls;
 mod cast_server;
 mod cf_relay;
-mod debug_server;
 mod discord_rp;
 mod dlna;
 mod dvr;
@@ -13,6 +12,7 @@ mod local_lib;
 mod modal_overlay;
 mod mpv;
 mod multiview;
+mod proc_mem;
 mod roku;
 #[cfg(target_os = "macos")]
 mod mpv_render_mac;
@@ -75,6 +75,111 @@ fn make_main_transparent(app: &tauri::AppHandle) {
     }
 }
 
+#[tauri::command]
+fn harbor_set_webview_memory_low(app: tauri::AppHandle, low: bool) {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+        let _ = window.with_webview(move |webview| unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+            };
+            use windows::core::Interface;
+            let controller = webview.controller();
+            if let Ok(core) = controller.CoreWebView2() {
+                if let Ok(w3) = core.cast::<ICoreWebView2_19>() {
+                    let level = if low {
+                        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+                    } else {
+                        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+                    };
+                    let _ = w3.SetMemoryUsageTargetLevel(level);
+                }
+            }
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (&app, low);
+    }
+}
+
+#[tauri::command]
+fn harbor_set_webview_visible(app: tauri::AppHandle, visible: bool) {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+        let _ = window.with_webview(move |webview| unsafe {
+            let _ = webview.controller().SetIsVisible(visible);
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (&app, visible);
+    }
+}
+
+#[tauri::command]
+fn harbor_try_suspend_webview(app: tauri::AppHandle) {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+        let _ = window.with_webview(move |webview| unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;
+            use webview2_com::TrySuspendCompletedHandler;
+            use windows::core::Interface;
+            let controller = webview.controller();
+            let _ = controller.SetIsVisible(false);
+            if let Ok(core) = controller.CoreWebView2() {
+                if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
+                    let handler = TrySuspendCompletedHandler::create(Box::new(|_hr, _ok| Ok(())));
+                    let _ = c3.TrySuspend(&handler);
+                }
+            }
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = &app;
+    }
+}
+
+#[tauri::command]
+fn harbor_resume_webview(app: tauri::AppHandle) {
+    #[cfg(windows)]
+    {
+        use tauri::Manager;
+        let Some(window) = app.get_webview_window("main") else {
+            return;
+        };
+        let _ = window.with_webview(move |webview| unsafe {
+            use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;
+            use windows::core::Interface;
+            let controller = webview.controller();
+            if let Ok(core) = controller.CoreWebView2() {
+                if let Ok(c3) = core.cast::<ICoreWebView2_3>() {
+                    let _ = c3.Resume();
+                }
+            }
+            let _ = controller.SetIsVisible(true);
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = &app;
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -91,8 +196,6 @@ pub fn run() {
     let dvr_state = dvr::DvrState::new();
     let multiview_state = multiview::MultiviewState::new();
     let modal_overlay_state = modal_overlay::ModalOverlayState::new();
-    let debug_state = debug_server::DebugState::new();
-    let debug_state_for_setup = debug_state.clone();
     let app_builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             use tauri::Manager;
@@ -117,7 +220,6 @@ pub fn run() {
         .manage(dvr_state)
         .manage(multiview_state)
         .manage(modal_overlay_state)
-        .manage(debug_state)
         .manage(discord_rp::DiscordState::new());
 
     #[cfg(target_os = "macos")]
@@ -155,7 +257,6 @@ pub fn run() {
                     }
                 }
             }
-            debug_server::maybe_start(&app.handle(), debug_state_for_setup.clone());
             cast_server::ensure_started_on_setup(&app.handle());
             {
                 let handle = app.handle().clone();
@@ -171,6 +272,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            harbor_set_webview_memory_low,
+            harbor_set_webview_visible,
+            harbor_try_suspend_webview,
+            harbor_resume_webview,
+            proc_mem::harbor_process_memory,
             trailer::fetch_trailer,
             stream_proxy::proxy_register,
             stream_proxy::proxy_unregister,
@@ -228,10 +334,6 @@ pub fn run() {
             discord_rp::discord_set_presence,
             discord_rp::discord_clear,
             discord_rp::discord_set_enabled,
-            debug_server::harbor_debug_push_state,
-            debug_server::harbor_debug_push_log,
-            debug_server::harbor_debug_resolve,
-            debug_server::harbor_debug_is_enabled,
             cast::cast_discover,
             cast::cast_load,
             cast::cast_play,

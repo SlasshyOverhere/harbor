@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listAddons, type SAAddon } from "@/lib/providers/stremio-addons";
 
-const SLOT_COUNT = 9;
+const SLOT_COUNT = 6;
 
 type Slot = {
   url: string;
@@ -79,7 +79,7 @@ export function AddonsMosaicBackdrop() {
               width: s.size,
               height: s.size,
               transform: `rotate(${s.rotate}deg)`,
-              filter: `blur(60px) saturate(1.4) hue-rotate(${s.hue}deg)`,
+              filter: `blur(40px) saturate(1.4) hue-rotate(${s.hue}deg)`,
               opacity: 0.18,
               backgroundImage: `url(${s.url})`,
               backgroundSize: "cover",

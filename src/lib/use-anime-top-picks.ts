@@ -31,6 +31,7 @@ import {
 const CAP = 24;
 const SEQUEL_ROLES = new Set(["sequel", "side_story", "parent_story", "spinoff", "spin_off"]);
 const VISIT_KEY = "harbor.anime.toppicks.visit.v1";
+const CACHE_KEY = "harbor.anime.toppicks.cache.v1";
 
 function nextVisit(): number {
   try {
@@ -49,19 +50,21 @@ function cleanName(m: Meta): Meta {
 }
 
 async function sequelMetas(seeds: LibraryItem[]): Promise<Meta[]> {
-  const out: Meta[] = [];
-  for (const item of seeds.slice(0, 6)) {
-    const malId = await malIdForItem(item);
-    if (!malId) continue;
-    const kitsuId = parseKitsuId(item._id);
-    if (kitsuId == null) continue;
-    const related = await kitsuRelated(kitsuId);
-    for (const rel of related) {
-      if (!SEQUEL_ROLES.has(rel.role)) continue;
-      out.push(rel.meta);
-    }
-  }
-  return out;
+  const lists = await Promise.all(
+    seeds.slice(0, 6).map(async (item) => {
+      try {
+        const malId = await malIdForItem(item);
+        if (!malId) return [] as Meta[];
+        const kitsuId = parseKitsuId(item._id);
+        if (kitsuId == null) return [] as Meta[];
+        const related = await kitsuRelated(kitsuId);
+        return related.filter((rel) => SEQUEL_ROLES.has(rel.role)).map((rel) => rel.meta);
+      } catch {
+        return [] as Meta[];
+      }
+    }),
+  );
+  return lists.flat();
 }
 
 export function useAnimeTopPicks(input: {
@@ -72,9 +75,11 @@ export function useAnimeTopPicks(input: {
   favoriteGenres: number[];
 }): Meta[] {
   const { libItems, continueWatching, heroMetas, watchHistoryRecs, favoriteGenres } = input;
-  const [picks, setPicks] = useState<Meta[]>([]);
+  const [picks, setPicks] = useState<Meta[]>(() => readCachedPicks());
   const [version, setVersion] = useState(0);
   const seedRef = useRef<number>(dayIndex() * 1000 + nextVisit());
+  const picksRef = useRef(picks);
+  picksRef.current = picks;
 
   useEffect(() => {
     let timer = 0;
@@ -154,6 +159,10 @@ export function useAnimeTopPicks(input: {
       for (const m of fresh) add(m, "new");
       for (const m of airing) add(m, "airing");
 
+      if (!cancelled && picksRef.current.length === 0 && byFranchise.size > 0) {
+        setPicks(rankPicks(byFranchise, seed, CAP));
+      }
+
       let page = 2;
       while (byFranchise.size < CAP && page <= 5) {
         if (cancelled) return;
@@ -182,7 +191,10 @@ export function useAnimeTopPicks(input: {
 
       const ranked = rankPicks(byFranchise, seed, CAP);
       recordShownPicks(ranked.map((m) => animeFranchiseKey(m.name)));
-      if (!cancelled) setPicks(ranked);
+      if (!cancelled) {
+        setPicks(ranked);
+        writeCachedPicks(ranked);
+      }
     })();
     return () => {
       cancelled = true;

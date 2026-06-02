@@ -1,4 +1,5 @@
-import { Loader2 } from "lucide-react";
+import { LottiePlayer } from "@/components/lottie-player";
+import waitingAnim from "@/assets/lottie/wt-waiting-white.json";
 import { formatNames } from "./player-utils";
 import type { RoomSnapshot } from "@/lib/together/client";
 
@@ -14,7 +15,7 @@ export function WaitingForRoom(props: {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/72 backdrop-blur-md">
       <div className="flex max-w-sm flex-col items-center gap-5 px-8 text-center">
-        <Loader2 size={28} strokeWidth={2.2} className="animate-spin text-white/85" />
+        <LottiePlayer data={waitingAnim} className="h-28 w-28" />
         <div className="flex flex-col gap-1.5">
           <h2 className="text-[18px] font-semibold text-white">
             {isHost ? "Waiting for everyone" : "Waiting for host"}
