@@ -258,6 +258,16 @@ export function TraktComments({ resolution }: { resolution: IdResolution | null 
     return `trakt-rating:${target.kind}:${id}`;
   }, [target]);
 
+  const commentsCacheKey = useMemo(() => {
+    if (!target) return null;
+    if (target.kind === "episode") {
+      const id = target.show.ids.imdb ?? target.show.ids.tmdb;
+      return `trakt-comments:episode:${id}:s${target.season}e${target.number}`;
+    }
+    const id = target.ids.imdb ?? target.ids.tmdb;
+    return `trakt-comments:${target.kind}:${id}`;
+  }, [target]);
+
   useEffect(() => {
     return subscribeSession(() => {
       setSessionState(getSession());
@@ -297,11 +307,17 @@ export function TraktComments({ resolution }: { resolution: IdResolution | null 
     let cancelled = false;
     fetchComments(target, sort).then((data) => {
       if (cancelled) return;
-      setComments(data);
+      // Merge API comments with locally posted ones (prepend)
+      const local = commentsCacheKey
+        ? JSON.parse(localStorage.getItem(commentsCacheKey) ?? "[]") as TraktComment[]
+        : [];
+      const localIds = new Set(local.map((c) => c.id));
+      const merged = [...local, ...data.filter((c) => !localIds.has(c.id))];
+      setComments(merged);
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [target, sort]);
+  }, [target, sort, commentsCacheKey]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -335,6 +351,11 @@ export function TraktComments({ resolution }: { resolution: IdResolution | null 
       const created = await postComment(target, text.trim());
       setComments((prev) => [created, ...prev]);
       setText("");
+      if (commentsCacheKey) {
+        const existing = JSON.parse(localStorage.getItem(commentsCacheKey) ?? "[]") as TraktComment[];
+        existing.unshift(created);
+        localStorage.setItem(commentsCacheKey, JSON.stringify(existing));
+      }
     } catch (e) {
       console.error("Post comment error:", e);
       if (e instanceof TraktApiError) {
@@ -355,7 +376,7 @@ export function TraktComments({ resolution }: { resolution: IdResolution | null 
       }
     }
     setPosting(false);
-  }, [target, text, posting]);
+  }, [target, text, posting, commentsCacheKey]);
 
   const handleRate = useCallback(async (rating: number) => {
     if (!target || ratinging) return;
