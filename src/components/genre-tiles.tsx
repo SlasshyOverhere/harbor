@@ -7,7 +7,6 @@ import { rpdbPoster } from "@/lib/providers/rpdb";
 import { useSettings } from "@/lib/settings";
 import { useView } from "@/lib/view";
 import { Row } from "./row";
-import { Poster } from "./poster";
 
 const GENRE_PALETTE: Record<string, { from: string; to: string; ink: string }> = {
   Action: { from: "oklch(0.40 0.18 25)", to: "oklch(0.18 0.10 20)", ink: "oklch(0.96 0.02 25)" },
@@ -102,7 +101,7 @@ function GenreTile({ genre }: { genre: string }) {
         aria-hidden
         className="absolute inset-0"
         style={{
-          background: `linear-gradient(150deg, ${palette.from} 0%, oklch(from ${palette.from} l c h / 0.55) 65%, oklch(from ${palette.to} l c h / 0.85) 100%)`,
+          background: `linear-gradient(150deg, ${palette.from} 0%, oklch(from ${palette.from} l c h / 0.20) 65%, oklch(from ${palette.to} l c h / 0.35) 100%)`,
           mixBlendMode: "multiply",
         }}
       />
@@ -142,11 +141,11 @@ function CollageBackdrop({ backdrops, rpdbKey }: { backdrops: Meta[]; rpdbKey: s
           className="relative overflow-hidden"
           style={{ transform: `skewX(-8deg) translateX(${(i - 1) * 6}px)` }}
         >
-          <Poster
+          <img
             src={rpdbPoster(rpdbKey, m.id, m.background ?? m.poster)}
-            seed={m.id}
-            ratio="landscape"
-            className="absolute inset-0 rounded-none [transform:skewX(8deg)_scale(1.4)]"
+            alt=""
+            decoding="async"
+            className="absolute inset-0 h-full w-full rounded-none object-cover [transform:skewX(8deg)_scale(1.4)]"
           />
         </div>
       ))}
