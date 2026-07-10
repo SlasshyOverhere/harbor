@@ -6,7 +6,17 @@ import { isLinuxDesktop, isMacDesktop, isWindowsDesktop } from "@/lib/platform";
 import { ModalOverlayApp } from "@/views/modal-overlay-app";
 import { HdrOverlayApp } from "@/views/hdr-overlay-app";
 import { PipApp } from "@/views/pip";
+import { RemoteApp } from "@/views/remote-app";
 import "@/index.css";
+
+function detectRemoteMode(): boolean {
+  try {
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    if (path === "/remote" || path.endsWith("/remote")) return true;
+    if (new URLSearchParams(window.location.search).get("remote") === "1") return true;
+  } catch {}
+  return false;
+}
 
 function detectPipMode(): boolean {
   if (new URLSearchParams(window.location.search).get("pip") === "1") return true;
@@ -38,6 +48,7 @@ function detectHdrOverlay(): boolean {
 const isPip = detectPipMode();
 const isModal = detectModalOverlay();
 const isHdrOverlay = detectHdrOverlay();
+const isRemote = detectRemoteMode();
 if (isModal || isHdrOverlay) {
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
@@ -48,6 +59,12 @@ if (isModal || isHdrOverlay) {
     root.style.backgroundColor = "transparent";
   }
 }
+if (isRemote) {
+  document.documentElement.style.overflow = "auto";
+  document.body.style.overflow = "auto";
+  document.body.style.userSelect = "auto";
+  document.body.style.cursor = "auto";
+}
 if (!isPip && !isModal && !isHdrOverlay) {
   document.documentElement.dataset.os = isLinuxDesktop()
     ? "linux"
@@ -57,13 +74,23 @@ if (!isPip && !isModal && !isHdrOverlay) {
         ? "windows"
         : "web";
 }
-if (import.meta.env.DEV) console.log("[harbor] entry: pip =", isPip, "modal =", isModal, "hdr =", isHdrOverlay, "label =", (() => { try { return getCurrentWindow().label; } catch { return "?"; } })());
-if (import.meta.env.DEV && !isPip && !isModal && !isHdrOverlay) {
+if (import.meta.env.DEV) console.log("[harbor] entry: pip =", isPip, "modal =", isModal, "hdr =", isHdrOverlay, "remote =", isRemote, "label =", (() => { try { return getCurrentWindow().label; } catch { return "?"; } })());
+if (import.meta.env.DEV && !isPip && !isModal && !isHdrOverlay && !isRemote) {
   void import("./lib/streams/__fixtures__/verify").then((m) => m.logVerificationReport());
 }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isHdrOverlay ? <HdrOverlayApp /> : isModal ? <ModalOverlayApp /> : isPip ? <PipApp /> : <App />}
+    {isHdrOverlay ? (
+      <HdrOverlayApp />
+    ) : isModal ? (
+      <ModalOverlayApp />
+    ) : isPip ? (
+      <PipApp />
+    ) : isRemote ? (
+      <RemoteApp />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );
 

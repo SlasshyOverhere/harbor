@@ -141,7 +141,7 @@ export function ServerAddressSection() {
   }, []);
 
   useEffect(() => {
-    if (!isTauri || !settings.serveWebUi) {
+    if (!isTauri || !(settings.serveWebUi || settings.remoteControlEnabled)) {
       setWebError(false);
       return;
     }
@@ -153,7 +153,7 @@ export function ServerAddressSection() {
         .catch(() => {});
     }, 800);
     return () => window.clearTimeout(t);
-  }, [settings.serveWebUi]);
+  }, [settings.serveWebUi, settings.remoteControlEnabled]);
 
   if (!isTauri) return null;
 
@@ -237,14 +237,18 @@ export function ServerAddressSection() {
 
       <ToggleRow
         label={t("Harbor in your browser")}
-        sub={t("Serves this exact install of Harbor as a web app on your network. Open it on a phone, laptop, or TV browser, sign in there, and it streams through this computer.")}
-        value={settings.serveWebUi}
-        onChange={(v) => update({ serveWebUi: v })}
+        sub={t("Serves this exact install of Harbor as a web app on your network. Open it on a phone, laptop, or TV browser, sign in there, and it streams through this computer. You can also use the phone remote to control playback and cast to another device on this machine.")}
+        value={settings.serveWebUi || settings.remoteControlEnabled}
+        onChange={(v) => update({ serveWebUi: v, remoteControlEnabled: v })}
       />
-      {settings.serveWebUi && (
+      {(settings.serveWebUi || settings.remoteControlEnabled) && (
         <>
-          <AddressRow label={t("On this computer")} url={`http://127.0.0.1:${WEB_PORT}`} openable />
-          {lanIp && <AddressRow label={t("From any browser on your Wi-Fi")} url={`http://${lanIp}:${WEB_PORT}`} />}
+          <AddressRow label={t("Harbor in your browser (this computer)")} url={`http://127.0.0.1:${WEB_PORT}`} openable />
+          {lanIp && <AddressRow label={t("Harbor in your browser (Wi-Fi)")} url={`http://${lanIp}:${WEB_PORT}`} />}
+          <AddressRow label={t("Phone remote (this computer)")} url={`http://127.0.0.1:${WEB_PORT}/remote`} openable />
+          {lanIp && (
+            <AddressRow label={t("Phone remote (Wi-Fi)")} url={`http://${lanIp}:${WEB_PORT}/remote`} />
+          )}
           {webError && (
             <span className="text-[12px] text-danger">
               {t("Couldn't start on port {WEB_PORT}. Another app may be using it; toggle off and on to retry.", { WEB_PORT: String(WEB_PORT) })}
