@@ -18,7 +18,10 @@ import type { ScoredStream, Tier } from "@/lib/streams/types";
 import { isAddonRanked } from "@/lib/streams/addon-detect";
 import { useView, type PlayEpisode, type PlayerSrc } from "@/lib/view";
 import { torrentsDisabled } from "@/lib/torrent/stremio-stream";
+
+import { useScrollMemory, useView, type PlayEpisode, type PlayerSrc } from "@/lib/view";
 import { prefetchSegments } from "@/lib/skip-intro";
+
 import { exitWindowFullscreen } from "@/lib/fullscreen-state";
 import { useWindowFullscreen } from "@/lib/use-window-fullscreen";
 import { AutoExhaustedModal } from "./play-picker/auto-exhausted-modal";
@@ -176,6 +179,7 @@ export function PlayPicker({
     settings.requirePreferredLanguage === true && baseLangs.length > 0,
   );
   const [cachedOnly, setCachedOnly] = useState(false);
+  const pickerMainRef = useRef<HTMLElement | null>(null);
 
   const { inviteKey, canInvite, inviteSentRef, hostSourceForMedia, expectHostSource } = useRoomInvite({
     meta,
@@ -554,6 +558,14 @@ export function PlayPicker({
     ((autoActive && (streamIds === null || loading || autoCandidates.length > 0)) ||
       resolving != null);
   void terminalEmpty;
+
+  const pickerScrollKey = useMemo(() => {
+    const attemptKey = typeof attempt === "number" ? `:a${attempt}` : "";
+    return episode
+      ? `picker:${meta.id}:${episode.season}:${episode.episode}${attemptKey}`
+      : `picker:${meta.id}${attemptKey}`;
+  }, [attempt, episode, meta.id]);
+  useScrollMemory(pickerScrollKey, pickerMainRef, !showAutoTransition);
 
   const noSourcesConfigured =
     addons !== null && addons.length === 0 && debrids.length === 0;

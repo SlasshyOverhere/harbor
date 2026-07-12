@@ -1,6 +1,6 @@
 import { Globe, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { setUiLanguage, useT } from "@/lib/i18n";
+import { normalizeLanguage, setUiLanguage, useT } from "@/lib/i18n";
 import { localeForRegion, localeLabel, type LocaleProfile } from "@/lib/region/locale-map";
 import { useSettings } from "@/lib/settings";
 import type { Settings } from "@/lib/settings";
@@ -17,9 +17,10 @@ export function applyLocaleCascade(
   next: LocaleProfile,
   current: Pick<Settings, "preferredLanguages" | "preferredSubLangs" | "preferredAudioLangs">,
 ): void {
-  setUiLanguage(next.uiLanguage === "ar" ? "ar" : "en");
+  const uiLanguage = normalizeLanguage(next.uiLanguage);
+  setUiLanguage(uiLanguage);
   update({
-    uiLanguage: next.uiLanguage === "ar" ? "ar" : "en",
+    uiLanguage,
     tmdbLanguage: next.tmdbLanguage,
     preferredLanguages: prepend(next.audioLanguage, current.preferredLanguages),
     preferredSubLangs: prepend(next.subtitleLanguage, current.preferredSubLangs),

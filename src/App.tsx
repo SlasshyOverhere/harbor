@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FloatingBack } from "@/chrome/floating-back";
 import { WindowControls } from "@/chrome/window-controls";
 import { WindowResizeEdges } from "@/chrome/window-resize-edges";
@@ -86,6 +86,7 @@ import { MalProvider } from "@/lib/mal/provider";
 import { SimklProvider } from "@/lib/simkl/provider";
 import { LetterboxdProvider } from "@/lib/stremboxd/provider";
 import { useKeyboardNavigation } from "@/lib/keyboard-navigation";
+import { SFX } from "@/lib/sfx";
 
 const importAnime = () => import("@/views/anime");
 const importCalendar = () => import("@/views/calendar");
@@ -446,26 +447,74 @@ function Shell() {
     layout === "stremio";
   useViewPreloader();
 
+  const handleTvBack = useCallback(() => {
+    if (stackKinds.length > 1 || topKind !== "home") {
+      goBack();
+      return true;
+    }
+    return false;
+  }, [goBack, stackKinds.length, topKind]);
+
+  const handleTvBackToNav = useCallback(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    const nav = document.querySelector<HTMLElement>(
+      '[data-harbor-nav] a[href], [data-harbor-nav] button, [data-harbor-nav] [data-focusable="true"]',
+    );
+    nav?.focus({ preventScroll: true });
+  }, []);
+
   useKeyboardNavigation({
     enabled: !player && !picker,
     wrap: false,
-    onBack: () => {
-      if (stackKinds.length > 1 || topKind !== "home") {
-        goBack();
-        return true;
-      }
-      return false;
-    },
-    onBackToNav: () => {
-      const nav = document.querySelector<HTMLElement>(
-        '[data-harbor-nav] a[href], [data-harbor-nav] button, [data-harbor-nav] [data-focusable="true"]',
-      );
-      nav?.focus({ preventScroll: true });
-    },
+    onBack: handleTvBack,
+    onBackToNav: handleTvBackToNav,
   });
-
+useEffect(() => {
+    if (settings.soundTheme) {
+      SFX.setTheme(settings.soundTheme);
+    }
+  }, [settings.soundTheme]);
   useEffect(() => startMaintenance(), []);
 
+  useEffect(() => {
+    const initAudio = () => SFX.init();
+    window.addEventListener("pointerdown", initAudio, { once: true });
+    window.addEventListener("keydown", initAudio, { once: true });
+
+    const onMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isInteractive = target.closest('a[href], button, [data-focusable="true"], [role="button"]');
+      if (isInteractive && !isInteractive.contains(e.relatedTarget as Node)) {
+        SFX.hover();
+      }
+    };
+
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('button, a[href], [data-focusable="true"]');
+      if (btn) {
+        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+        const isBack = ariaLabel.includes('back') || btn.closest('[data-harbor-nav]');
+        
+        const isMovieCard = btn.querySelector('img') || btn.hasAttribute('data-media-card') || btn.classList.contains('media-card') || btn.closest('[data-tv-hero-zone]');
+
+        if (isBack) SFX.close();
+        else if (isMovieCard) SFX.open();
+        else SFX.click();
+      }
+    };
+
+    window.addEventListener("mouseover", onMouseOver);
+    window.addEventListener("click", onClick, { capture: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", initAudio);
+      window.removeEventListener("keydown", initAudio);
+      window.removeEventListener("mouseover", onMouseOver);
+      window.removeEventListener("click", onClick, { capture: true });
+    };
+  }, []);
+  
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button === 3) {
