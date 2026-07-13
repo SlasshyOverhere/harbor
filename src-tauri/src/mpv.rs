@@ -281,13 +281,18 @@ fn apply_pre_init(
     args: &MpvStartArgs,
     embed_hwnd: Option<&str>,
 ) -> Result<(), String> {
-    let set = |k: &str, v: &str| -> Result<(), String> {
-        init.set_property(k, v).map_err(|e| format!("set {}={}: {}", k, v, e))
+    // Property sets here are best-effort. Some builds of mpv (e.g. Flatpak's
+    // meson build without Lua) omit optional properties like `osc`. Treat
+    // PROPERTY_NOT_FOUND as non-fatal so the player still initializes.
+    let set = |k: &str, v: &str| {
+        if let Err(e) = init.set_property(k, v) {
+            eprintln!("[harbor::mpv] pre-init skip {}={}: {}", k, v, e);
+        }
     };
-    set("title", "Harbor")?;
-    set("audio-client-name", "Harbor")?;
-    set("terminal", "no")?;
-    set("msg-level", "all=warn,vo=v,d3d11=v,gpu=v,win32=v")?;
+    set("title", "Harbor");
+    set("audio-client-name", "Harbor");
+    set("terminal", "no");
+    set("msg-level", "all=warn,vo=v,d3d11=v,gpu=v,win32=v");
     let mut user_agent = "VLC/3.0.20 LibVLC/3.0.20".to_string();
     let mut header_fields: Vec<String> = Vec::new();
     if let Some(headers) = &args.headers {
@@ -299,45 +304,45 @@ fn apply_pre_init(
             }
         }
     }
-    set("user-agent", &user_agent)?;
+    set("user-agent", &user_agent);
     if !header_fields.is_empty() {
-        set("http-header-fields", &header_fields.join(","))?;
+        set("http-header-fields", &header_fields.join(","));
     }
     let on_mac_embed = cfg!(target_os = "macos") && embed_hwnd.is_some();
     if on_mac_embed {
-        set("hwdec", "videotoolbox-copy")?;
-        set("force-window", "no")?;
+        set("hwdec", "videotoolbox-copy");
+        set("force-window", "no");
     } else if cfg!(target_os = "linux") {
-        set("hwdec", "auto-safe")?;
+        set("hwdec", "auto-safe");
         if args.embed.unwrap_or(false) {
-            set("force-window", "no")?;
+            set("force-window", "no");
         } else {
-            set("force-window", "yes")?;
+            set("force-window", "yes");
         }
     } else if cfg!(windows) {
-        set("hwdec", "auto-copy")?;
-        set("force-window", "immediate")?;
+        set("hwdec", "auto-copy");
+        set("force-window", "immediate");
     } else {
-        set("hwdec", "auto")?;
-        set("force-window", "immediate")?;
+        set("hwdec", "auto");
+        set("force-window", "immediate");
     }
     if args.embed.unwrap_or(false) && (cfg!(target_os = "macos") || cfg!(target_os = "linux")) {
         // libmpv normally wakes the render callback ahead of the target
         // presentation time and blocks inside render() until that time. Both
         // platform render APIs run on the application UI thread, so that wait
         // also stalls the WebKit overlay. Wake at the target time instead.
-        set("video-timing-offset", "0")?;
+        set("video-timing-offset", "0");
     }
-    set("input-default-bindings", "no")?;
-    set("input-media-keys", "no")?;
-    set("input-cursor", "no")?;
+    set("input-default-bindings", "no");
+    set("input-media-keys", "no");
+    set("input-cursor", "no");
     // `osc` is provided by mpv's optional on-screen-controller script. Some
     // libmpv builds, including the Flatpak build, do not ship that script, so
     // its option is unavailable. Harbor supplies its own controls either way.
     let _ = set("osc", "no");
-    set("osd-level", "0")?;
-    set("cursor-autohide", "200")?;
-    set("volume-max", "600")?;
+    set("osd-level", "0");
+    set("cursor-autohide", "200");
+    set("volume-max", "600");
     let _ = init.set_property("background-color", "#000000");
     let _ = init.set_property("background", "color");
     let _ = init.set_property("media-controls", "yes");
@@ -348,7 +353,7 @@ fn apply_pre_init(
             let hwnd_i64: i64 = hwnd.parse().map_err(|e| format!("parse wid {}: {}", hwnd, e))?;
             init.set_property("wid", hwnd_i64).map_err(|e| format!("set wid={}: {}", hwnd_i64, e))?;
             if args.d3d11_flip.unwrap_or(false) && args.hdr_to_sdr.unwrap_or(false) {
-                set("d3d11-flip", "no")?;
+                set("d3d11-flip", "no");
             }
         }
         #[cfg(not(windows))]
@@ -356,8 +361,8 @@ fn apply_pre_init(
             let _ = hwnd;
         }
     } else if !args.embed.unwrap_or(false) {
-        set("ontop", "yes")?;
-        set("border", "no")?;
+        set("ontop", "yes");
+        set("border", "no");
     }
 
     let opt = |k: &str, v: &str| {
@@ -395,7 +400,7 @@ fn apply_pre_init(
 
     if let Some(start) = args.start_at_sec {
         if start > 0.0 {
-            set("start", &format!("{}", start))?;
+            set("start", &format!("{}", start));
         }
     }
     Ok(())
