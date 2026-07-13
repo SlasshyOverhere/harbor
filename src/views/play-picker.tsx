@@ -16,7 +16,6 @@ import { readSeasonLock } from "@/lib/season-lock";
 import { useSettings } from "@/lib/settings";
 import type { ScoredStream, Tier } from "@/lib/streams/types";
 import { isAddonRanked } from "@/lib/streams/addon-detect";
-import { useView, type PlayEpisode, type PlayerSrc } from "@/lib/view";
 import { torrentsDisabled } from "@/lib/torrent/stremio-stream";
 
 import { useScrollMemory, useView, type PlayEpisode, type PlayerSrc } from "@/lib/view";
@@ -842,4 +841,3 @@ function PickerScrollTop({ scrollRef }: { scrollRef: React.RefObject<HTMLElement
     </button>
   );
 }
-
