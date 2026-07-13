@@ -37,8 +37,118 @@ mod mac {
 #[cfg(target_os = "macos")]
 static TOKEN: std::sync::Mutex<Option<mac::Token>> = std::sync::Mutex::new(None);
 
+#[cfg(target_os = "linux")]
+mod linux {
+    use std::collections::HashMap;
+
+    use zbus::zvariant::{OwnedObjectPath, Value};
+
+    const SCREENSAVER_DESTINATION: &str = "org.freedesktop.ScreenSaver";
+    const SCREENSAVER_PATH: &str = "/org/freedesktop/ScreenSaver";
+    const SCREENSAVER_INTERFACE: &str = "org.freedesktop.ScreenSaver";
+    const PORTAL_DESTINATION: &str = "org.freedesktop.portal.Desktop";
+    const PORTAL_PATH: &str = "/org/freedesktop/portal/desktop";
+    const PORTAL_INHIBIT_INTERFACE: &str = "org.freedesktop.portal.Inhibit";
+    const PORTAL_REQUEST_INTERFACE: &str = "org.freedesktop.portal.Request";
+    const INHIBIT_SUSPEND_AND_IDLE: u32 = 4 | 8;
+
+    pub enum Token {
+        ScreenSaver {
+            connection: zbus::Connection,
+            cookie: u32,
+        },
+        Portal {
+            connection: zbus::Connection,
+            handle: OwnedObjectPath,
+        },
+    }
+
+    pub async fn begin() -> Option<Token> {
+        let connection = zbus::Connection::session().await.ok()?;
+
+        if let Some(token) = begin_portal(&connection).await {
+            return Some(token);
+        }
+
+        begin_screensaver(&connection).await
+    }
+
+    async fn begin_screensaver(connection: &zbus::Connection) -> Option<Token> {
+        let proxy = zbus::Proxy::new(
+            connection,
+            SCREENSAVER_DESTINATION,
+            SCREENSAVER_PATH,
+            SCREENSAVER_INTERFACE,
+        )
+        .await
+        .ok()?;
+        let cookie = proxy
+            .call("Inhibit", &("Harbor", "Harbor playback"))
+            .await
+            .ok()?;
+
+        Some(Token::ScreenSaver {
+            connection: connection.clone(),
+            cookie,
+        })
+    }
+
+    async fn begin_portal(connection: &zbus::Connection) -> Option<Token> {
+        let proxy = zbus::Proxy::new(
+            connection,
+            PORTAL_DESTINATION,
+            PORTAL_PATH,
+            PORTAL_INHIBIT_INTERFACE,
+        )
+        .await
+        .ok()?;
+        let options = HashMap::from([("reason", Value::from("Harbor playback"))]);
+        let handle = proxy
+            .call("Inhibit", &("", INHIBIT_SUSPEND_AND_IDLE, options))
+            .await
+            .ok()?;
+
+        Some(Token::Portal {
+            connection: connection.clone(),
+            handle,
+        })
+    }
+
+    pub async fn end(token: Token) {
+        match token {
+            Token::ScreenSaver { connection, cookie } => {
+                if let Ok(proxy) = zbus::Proxy::new(
+                    &connection,
+                    SCREENSAVER_DESTINATION,
+                    SCREENSAVER_PATH,
+                    SCREENSAVER_INTERFACE,
+                )
+                .await
+                {
+                    let _ = proxy.call::<_, _, ()>("UnInhibit", &(cookie,)).await;
+                }
+            }
+            Token::Portal { connection, handle } => {
+                if let Ok(proxy) = zbus::Proxy::new(
+                    &connection,
+                    PORTAL_DESTINATION,
+                    handle.as_str(),
+                    PORTAL_REQUEST_INTERFACE,
+                )
+                .await
+                {
+                    let _ = proxy.call::<_, _, ()>("Close", &()).await;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+static TOKEN: tokio::sync::Mutex<Option<linux::Token>> = tokio::sync::Mutex::const_new(None);
+
 #[tauri::command]
-pub fn power_inhibit(on: bool) {
+pub async fn power_inhibit(on: bool) {
     #[cfg(target_os = "macos")]
     {
         let mut guard = TOKEN.lock().unwrap();
@@ -49,7 +159,17 @@ pub fn power_inhibit(on: bool) {
             (false, None) => {}
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        let mut guard = TOKEN.lock().await;
+        match (on, guard.take()) {
+            (true, None) => *guard = linux::begin().await,
+            (true, Some(token)) => *guard = Some(token),
+            (false, Some(token)) => linux::end(token).await,
+            (false, None) => {}
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         let _ = on;
     }

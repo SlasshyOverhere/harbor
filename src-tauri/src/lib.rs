@@ -462,11 +462,23 @@ pub fn run() {
 
     app_builder
         .setup(move |app| {
-            #[cfg(any(windows, target_os = "linux"))]
+            #[cfg(windows)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 if let Err(e) = app.deep_link().register_all() {
                     eprintln!("[harbor::deep-link] register_all failed: {:?}", e);
+                }
+            }
+            #[cfg(target_os = "linux")]
+            {
+                // Flatpak registers the URI handlers from the exported desktop
+                // entry. Runtime registration attempts to write host integration
+                // files and is not permitted inside the sandbox.
+                if std::env::var_os("FLATPAK_ID").is_none() {
+                    use tauri_plugin_deep_link::DeepLinkExt;
+                    if let Err(e) = app.deep_link().register_all() {
+                        eprintln!("[harbor::deep-link] register_all failed: {:?}", e);
+                    }
                 }
             }
             #[cfg(windows)]

@@ -268,7 +268,10 @@ fn apply_pre_init(
     set("input-default-bindings", "no")?;
     set("input-media-keys", "no")?;
     set("input-cursor", "no")?;
-    set("osc", "no")?;
+    // `osc` is provided by mpv's optional on-screen-controller script. Some
+    // libmpv builds, including the Flatpak build, do not ship that script, so
+    // its option is unavailable. Harbor supplies its own controls either way.
+    let _ = set("osc", "no");
     set("osd-level", "0")?;
     set("cursor-autohide", "200")?;
     set("volume-max", "600")?;
