@@ -232,6 +232,8 @@ export function useKeyboardNavigation(options: TVNavigationOptions = {}) {
         return;
       }
 
+      if (isEditable(target)) return;
+
       if (isBackKey(e)) {
         SFX.close(); 
 
