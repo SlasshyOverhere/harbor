@@ -55,7 +55,7 @@ pub struct MpvStartArgs {
     pub extra_options: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MpvGeometry {
     pub css_left: f64,
@@ -64,6 +64,69 @@ pub struct MpvGeometry {
     pub css_height: f64,
     pub css_view_w: f64,
     pub css_view_h: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct NativeMpvRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+pub(crate) fn map_css_geometry(
+    css: &MpvGeometry,
+    native_width: f64,
+    native_height: f64,
+) -> NativeMpvRect {
+    let full_surface = NativeMpvRect {
+        x: 0.0,
+        y: 0.0,
+        width: native_width,
+        height: native_height,
+    };
+    if !css.css_left.is_finite()
+        || !css.css_top.is_finite()
+        || !css.css_width.is_finite()
+        || !css.css_height.is_finite()
+        || !css.css_view_w.is_finite()
+        || !css.css_view_h.is_finite()
+        || css.css_width <= 0.0
+        || css.css_height <= 0.0
+        || css.css_view_w <= 0.0
+        || css.css_view_h <= 0.0
+    {
+        return full_surface;
+    }
+
+    let scale_x = native_width / css.css_view_w;
+    let scale_y = native_height / css.css_view_h;
+    let mut x = css.css_left * scale_x;
+    let mut y = css.css_top * scale_y;
+    let mut width = css.css_width * scale_x;
+    let mut height = css.css_height * scale_y;
+
+    if css.css_left.abs() <= 2.0 {
+        width += x;
+        x = 0.0;
+    }
+    if css.css_top.abs() <= 2.0 {
+        height += y;
+        y = 0.0;
+    }
+    if css.css_left + css.css_width >= css.css_view_w - 2.0 {
+        width = native_width - x;
+    }
+    if css.css_top + css.css_height >= css.css_view_h - 2.0 {
+        height = native_height - y;
+    }
+
+    x = x.clamp(0.0, (native_width - 1.0).max(0.0));
+    y = y.clamp(0.0, (native_height - 1.0).max(0.0));
+    width = width.clamp(1.0, (native_width - x).max(1.0));
+    height = height.clamp(1.0, (native_height - y).max(1.0));
+
+    NativeMpvRect { x, y, width, height }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -897,30 +960,19 @@ pub async fn mpv_set_geometry(
             g.as_ref().map(|s| s.embedded).unwrap_or(false)
         };
         if embedded {
-            return position_embedded_mpv_child(
-                &app,
-                geom.css_left,
-                geom.css_top,
-                geom.css_width,
-                geom.css_height,
-                geom.css_view_w,
-                geom.css_view_h,
-            );
+            return position_embedded_mpv_child(&app, geom);
         }
     }
     #[cfg(target_os = "macos")]
     {
-        let x = geom.css_left;
-        let y = geom.css_top;
-        let w = geom.css_view_w;
-        let h = geom.css_view_h;
-        let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
-        let _ = app.run_on_main_thread(move || {
-            let _ = crate::mpv_render_mac::resize_to(x, y, w, h);
-            let _ = tx.send(());
-        });
-        let _ = rx.recv_timeout(std::time::Duration::from_millis(300));
-        return Ok(());
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        app.run_on_main_thread(move || {
+            let _ = tx.send(crate::mpv_render_mac::resize_to(geom));
+        })
+        .map_err(|error| format!("failed to schedule macOS mpv resize: {error}"))?;
+        return rx
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .map_err(|error| format!("timed out waiting for macOS mpv resize: {error}"))?;
     }
     #[cfg(target_os = "linux")]
     {
@@ -929,15 +981,9 @@ pub async fn mpv_set_geometry(
             g.as_ref().map(|s| s.embedded).unwrap_or(false)
         };
         if embedded {
-            let x = geom.css_left;
-            let y = geom.css_top;
-            let w = geom.css_width;
-            let h = geom.css_height;
-            let css_view_w = geom.css_view_w;
-            let css_view_h = geom.css_view_h;
             let (tx, rx) = std::sync::mpsc::sync_channel::<()>(1);
             let _ = app.run_on_main_thread(move || {
-                let _ = crate::mpv_render_linux::resize_to(x, y, w, h, css_view_w, css_view_h);
+                let _ = crate::mpv_render_linux::resize_to(geom);
                 let _ = tx.send(());
             });
             let _ = rx.recv_timeout(std::time::Duration::from_millis(300));
@@ -1729,12 +1775,7 @@ static MPV_HDR_STAGE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
 #[cfg(windows)]
 fn position_embedded_mpv_child(
     app: &AppHandle,
-    css_left: f64,
-    css_top: f64,
-    css_width: f64,
-    css_height: f64,
-    css_view_w: f64,
-    css_view_h: f64,
+    css: MpvGeometry,
 ) -> Result<(), String> {
     use windows::core::BOOL;
     use windows::Win32::Foundation::{HWND, LPARAM};
@@ -1760,30 +1801,16 @@ fn position_embedded_mpv_child(
         let mut rc = RECT::default();
         let ok = unsafe { GetClientRect(parent_hwnd, &mut rc).is_ok() };
         let (cw, ch) = (rc.right, rc.bottom);
-        if !(ok && cw > 0 && ch > 0 && css_view_w > 0.5 && css_view_h > 0.5) {
+        if !(ok && cw > 0 && ch > 0) {
             (0i32, 0i32, cw.max(1) as u32, ch.max(1) as u32)
         } else {
-            let sx = cw as f64 / css_view_w;
-            let sy = ch as f64 / css_view_h;
-            let mut x = (css_left * sx).round() as i32;
-            let mut y = (css_top * sy).round() as i32;
-            let mut w = (css_width * sx).round() as i32;
-            let mut h = (css_height * sy).round() as i32;
-            if x.abs() <= 2 {
-                w += x;
-                x = 0;
-            }
-            if y.abs() <= 2 {
-                h += y;
-                y = 0;
-            }
-            if (x + w - cw).abs() <= 4 || css_left + css_width >= css_view_w - 2.0 {
-                w = cw - x;
-            }
-            if (y + h - ch).abs() <= 4 || css_top + css_height >= css_view_h - 2.0 {
-                h = ch - y;
-            }
-            (x, y, w.max(1) as u32, h.max(1) as u32)
+            let native = map_css_geometry(&css, cw as f64, ch as f64);
+            (
+                native.x.round() as i32,
+                native.y.round() as i32,
+                native.width.round().max(1.0) as u32,
+                native.height.round().max(1.0) as u32,
+            )
         }
     };
 
@@ -1911,4 +1938,60 @@ fn position_embedded_mpv_child(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::{map_css_geometry, MpvGeometry, NativeMpvRect};
+
+    #[test]
+    fn mpv_geometry_maps_a_zoomed_full_viewport_to_the_full_native_surface() {
+        let css = MpvGeometry {
+            css_left: 0.0,
+            css_top: 0.0,
+            css_width: 1221.428571,
+            css_height: 742.857143,
+            css_view_w: 1221.428571,
+            css_view_h: 742.857143,
+        };
+
+        assert_eq!(
+            map_css_geometry(&css, 1710.0, 1040.0),
+            NativeMpvRect { x: 0.0, y: 0.0, width: 1710.0, height: 1040.0 }
+        );
+    }
+
+    #[test]
+    fn mpv_geometry_scales_partial_rectangles_on_each_axis() {
+        let css = MpvGeometry {
+            css_left: 10.0,
+            css_top: 20.0,
+            css_width: 500.0,
+            css_height: 300.0,
+            css_view_w: 1000.0,
+            css_view_h: 800.0,
+        };
+
+        assert_eq!(
+            map_css_geometry(&css, 2000.0, 1200.0),
+            NativeMpvRect { x: 20.0, y: 30.0, width: 1000.0, height: 450.0 }
+        );
+    }
+
+    #[test]
+    fn mpv_geometry_falls_back_to_the_native_surface_for_invalid_viewports() {
+        let css = MpvGeometry {
+            css_left: 40.0,
+            css_top: 30.0,
+            css_width: 500.0,
+            css_height: 300.0,
+            css_view_w: 0.0,
+            css_view_h: f64::NAN,
+        };
+
+        assert_eq!(
+            map_css_geometry(&css, 1920.0, 1080.0),
+            NativeMpvRect { x: 0.0, y: 0.0, width: 1920.0, height: 1080.0 }
+        );
+    }
 }

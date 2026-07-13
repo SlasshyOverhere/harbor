@@ -14,6 +14,8 @@ use gtk::prelude::*;
 use libmpv2::render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamApiType};
 use libmpv2_sys::mpv_handle;
 
+use crate::mpv::{map_css_geometry, MpvGeometry};
+
 const GL_FRAMEBUFFER_BINDING: u32 = 0x8CA6;
 const GL_FRAMEBUFFER: u32 = 0x8D40;
 const GL_COLOR_ATTACHMENT0: u32 = 0x8CE0;
@@ -366,36 +368,24 @@ fn do_render(rc: &RenderContext, area: &gtk::GLArea) {
     let _ = rc.render::<()>(fbo, w, h, true);
 }
 
-pub fn resize_to(
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-    css_view_w: f64,
-    css_view_h: f64,
-) -> Result<(), String> {
+pub fn resize_to(css: MpvGeometry) -> Result<(), String> {
     EMBED.with(|slot| {
         let guard = slot.borrow();
         let Some(embed) = guard.as_ref() else {
             return;
         };
-        let sx = if css_view_w > 0.0 {
-            embed.gtk_window.allocated_width().max(1) as f64 / css_view_w
-        } else {
-            1.0
-        };
-        let sy = if css_view_h > 0.0 {
-            embed.gtk_window.allocated_height().max(1) as f64 / css_view_h
-        } else {
-            1.0
-        };
-        let lw = (w * sx).round().max(1.0) as i32;
-        let lh = (h * sy).round().max(1.0) as i32;
+        let native = map_css_geometry(
+            &css,
+            embed.gtk_window.allocated_width().max(1) as f64,
+            embed.gtk_window.allocated_height().max(1) as f64,
+        );
+        let lw = native.width.round().max(1.0) as i32;
+        let lh = native.height.round().max(1.0) as i32;
         embed.area.set_size_request(lw, lh);
         if let Some(parent) = embed.area.parent() {
             if let Some(fixed) = parent.downcast_ref::<gtk::Fixed>() {
-                let lx = (x * sx).round() as i32;
-                let ly = (y * sy).round() as i32;
+                let lx = native.x.round() as i32;
+                let ly = native.y.round() as i32;
                 fixed.move_(&embed.area, lx, ly);
             }
         }
