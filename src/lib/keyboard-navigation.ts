@@ -81,6 +81,7 @@ let focusStylesInjected = false;
 type TVNavigationOptions = {
   enabled?: boolean;
   wrap?: boolean;
+  arrows?: boolean;
   onBack?: () => boolean;
   onBackToNav?: () => void;
 };
@@ -290,10 +291,10 @@ function getInitialFocus(list: HTMLElement[]) {
 const NAV_FOCUS_SELECTOR =
   "[data-tv-top-chrome] button, [data-tv-top-chrome] a[href], [data-harbor-nav][data-active], [data-harbor-nav], [data-tv-nav-zone] button, [data-harbor-sidebar] button, [data-tv-nav-zone] a[href], [data-tv-nav-zone] [data-focusable='true']";
 
-function focusNavChrome() {
-  const nav = document.querySelector<HTMLElement>(NAV_FOCUS_SELECTOR);
-  if (nav) focusElement(nav, 'none');
-}
+  function focusNavChrome() {
+    const nav = document.querySelector<HTMLElement>(NAV_FOCUS_SELECTOR);
+    if (nav) focusElement(nav);
+  }
 
 function focusNavDefault() {
   const nav = document.querySelector<HTMLElement>(

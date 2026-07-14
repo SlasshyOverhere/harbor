@@ -6,6 +6,7 @@ import { effectiveBinding, eventToBinding, isTypingTarget, type HotkeyId } from 
 import { useSettings } from "@/lib/settings";
 import { round2 } from "../player-utils";
 import { SFX } from "@/lib/sfx";
+import { requestPlayerClose } from "../request-player-close";
 
 export function useKeyboardShortcuts(params: {
   bridgeRef: RefObject<PlayerBridge | null>;
