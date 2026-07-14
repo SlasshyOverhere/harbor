@@ -6,6 +6,7 @@ export const STORAGE_KEY = "harbor.settings";
 export const DEFAULT: Settings = {
   soundTheme: 'glass',
   sfxVolume: 50,
+  playerVolumeSfx: false,
   blurComments: false,
   blurEpisodes: false,
   tmdbKey: "",

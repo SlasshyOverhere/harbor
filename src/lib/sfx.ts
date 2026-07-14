@@ -201,29 +201,29 @@ class SoundEffects {
     type: OscillatorType = "square",
   ) {
     if (this.muted) return;
-  
+
     const c = this.getCtx();
-  
+
     if (!c || !this.masterGain) return;
-  
+
     const t = c.currentTime;
     const osc = c.createOscillator();
     const filter = c.createBiquadFilter();
     const gain = c.createGain();
-  
+
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t);
-  
+
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(2200, t);
     filter.Q.setValueAtTime(0.7, t);
-  
+
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(vol, t + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  
+
     osc.connect(filter).connect(gain).connect(this.masterGain);
-  
+
     osc.start(t);
     osc.stop(t + dur + 0.01);
   }
@@ -354,7 +354,7 @@ class SoundEffects {
         0.007,
         isDown ? 820 : 1020,
       );
-    
+
       return;
     }
 
@@ -563,17 +563,17 @@ class SoundEffects {
         0.06,
         0.012
       );
-      
-      
+
+
       setTimeout(() => {
-      
+
         this.playTone(
           659,
           "triangle",
           0.08,
           0.01
         );
-      
+
       }, 35);
 
 
@@ -673,17 +673,17 @@ class SoundEffects {
         0.01,
         420
       );
-      
-      
+
+
       setTimeout(() => {
-      
+
         this.playTone(
           430,
           "triangle",
           0.06,
           0.008
         );
-      
+
       }, 35);
 
 
@@ -754,7 +754,7 @@ class SoundEffects {
 
 
     if (this.activeTheme === "modern") {
-      
+
       this.playGlass({
         freq: 1600,
         dur: 0.045,
@@ -985,14 +985,14 @@ class SoundEffects {
 
   volumeChange(isUp: boolean) {
     if (this.activeTheme === 'none') return;
-    
+
     if (this.activeTheme === 'cloudy') {
-      
+
       this.playTone(isUp ? 1200 : 800, 'sine', 0.04, 0.015, isUp ? 1400 : 600);
-    } 
+    }
     else if (this.activeTheme === "retro") {
       this.playTick(isUp ? 820 : 570, 0.018, 0.009);
-    } 
+    }
     else if (this.activeTheme === 'cinematic') {
       this.playTone(
         isUp ? 180 : 120,
@@ -1001,37 +1001,37 @@ class SoundEffects {
         0.018,
         isUp ? 220 : 90
       );
-    } 
+    }
     else if (this.activeTheme === 'modern') {
-      
+
       this.playGlass({
         freq: isUp ? 1500 : 1100,
         dur: 0.1,
         vol: 0.015,
       });
-    } 
+    }
     else if (this.activeTheme === 'glass') {
-      
+
       this.playGlass({ freq: isUp ? 1500 : 1100, dur: 0.1, vol: 0.015 });
     }
   }
 
-  
+
   playbackToggle(isPlay: boolean) {
     if (this.activeTheme === 'none') return;
-    
+
     if (this.activeTheme === 'cloudy') {
       this.playTone(isPlay ? 600 : 800, 'sine', 0.08, 0.02, isPlay ? 1200 : 400);
-    } 
+    }
     else if (this.activeTheme === "retro") {
       this.playTick(isPlay ? 700 : 480, 0.03, 0.014);
     }
     else if (this.activeTheme === 'cinematic') {
       this.playTone(isPlay ? 180 : 100, 'sine', 0.15, 0.04);
-    } 
+    }
     else if (this.activeTheme === 'modern') {
       this.playTone(isPlay ? 520 : 400, 'sine', 0.05, 0.03);
-    } 
+    }
     else if (this.activeTheme === 'glass') {
       this.playGlass({ freq: isPlay ? 1200 : 700, dur: 0.15, vol: 0.03 });
     }

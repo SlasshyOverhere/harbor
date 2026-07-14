@@ -39,9 +39,9 @@ export function SearchOverlay() {
     const closeSearch = () => {
       setOpen(false);
     };
-  
+
     window.addEventListener('harbor:close-search', closeSearch);
-  
+
     return () => {
       window.removeEventListener('harbor:close-search', closeSearch);
     };

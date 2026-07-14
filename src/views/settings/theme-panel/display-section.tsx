@@ -102,8 +102,8 @@ export function DisplaySection() {
         subtitle={t("Choose your preferred audio feedback for navigation and actions.")}
       >
         <div className="flex max-w-sm flex-col gap-4">
-          
-          
+
+
           <select
             value={settings.soundTheme || 'glass'}
             onChange={(e) => update({ soundTheme: e.target.value as any })}
@@ -117,7 +117,7 @@ export function DisplaySection() {
             <option value="cloudy">{t("Bubbles 💧 (Bubbles & Drops)")}</option>
           </select>
 
-          
+
           {(settings.soundTheme || 'glass') !== 'none' && (
             <div className="flex flex-col gap-2 rounded-lg border border-edge-soft bg-surface/50 p-3">
               <div className="flex items-center justify-between">
@@ -132,13 +132,20 @@ export function DisplaySection() {
                 value={settings.sfxVolume ?? 50}
                 onChange={(e) => {
                   update({ sfxVolume: parseInt(e.target.value, 10) });
-                  SFX.click(); 
+                  SFX.click();
                 }}
                 className="h-2 w-full appearance-none rounded-full bg-canvas outline-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
               />
             </div>
           )}
-          
+
+          <ToggleRow
+            label={t("Player volume sounds")}
+            sub={t("Play a short sound when changing the player volume. Off by default.")}
+            value={settings.playerVolumeSfx}
+            onChange={(value) => update({ playerVolumeSfx: value })}
+          />
+
         </div>
       </Section>
       <Section
