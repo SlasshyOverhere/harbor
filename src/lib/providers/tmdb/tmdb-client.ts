@@ -12,15 +12,8 @@ export function setTmdbLanguage(lang: string): void {
   tmdbLanguage = lang.trim();
 }
 
-function arabicModeActive(): boolean {
-  if (typeof document === "undefined") return false;
-  const el = document.documentElement;
-  return el.lang.toLowerCase().startsWith("ar") || el.dir === "rtl";
-}
-
 export function effectiveTmdbLanguage(): string {
-  if (tmdbLanguage) return tmdbLanguage;
-  return arabicModeActive() ? "ar" : "";
+  return tmdbLanguage;
 }
 
 export function tmdbLanguageIso(): string {

@@ -135,7 +135,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (tmdbLangRef.current === eff) return;
     tmdbLangRef.current = eff;
     window.location.reload();
-  }, [settings.tmdbLanguage, settings.uiLanguage]);
+  }, [settings.tmdbLanguage]);
 
   const imgLangRef = useRef<string | null>(null);
   useEffect(() => {
