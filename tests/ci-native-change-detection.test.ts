@@ -1,5 +1,8 @@
+// @ts-expect-error Node test types are intentionally outside the browser-only tsconfig.
 import assert from "node:assert/strict";
+// @ts-expect-error Node test types are intentionally outside the browser-only tsconfig.
 import { readFileSync } from "node:fs";
+// @ts-expect-error Node test types are intentionally outside the browser-only tsconfig.
 import test from "node:test";
 
 const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
