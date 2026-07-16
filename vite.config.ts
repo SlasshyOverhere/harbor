@@ -1,6 +1,7 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { visualizer } from "rollup-plugin-visualizer";
 import pkg from "./package.json" with { type: "json" };
 
 declare const process: { env: Record<string, string | undefined> };
@@ -25,7 +26,21 @@ export default defineConfig({
     },
     options: { typeAware: true, typeCheck: true },
   },
-  plugins: lazyPlugins(() => [react(), tailwindcss()]),
+  plugins: lazyPlugins(() => [
+    react(),
+    tailwindcss(),
+    ...(process.env.BUNDLE_ANALYZE === "1"
+      ? [
+          visualizer({
+            filename: "dist/bundle-stats.html",
+            template: "treemap",
+            gzipSize: true,
+            brotliSize: true,
+            open: false,
+          }),
+        ]
+      : []),
+  ]),
   clearScreen: false,
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

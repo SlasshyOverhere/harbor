@@ -1,5 +1,4 @@
-import { LottiePlayer } from "@/components/lottie-player";
-import waitingAnim from "@/assets/lottie/wt-waiting-white.json";
+import { HarborBoatMotion } from "@/components/harbor-loader";
 import { formatNames } from "./player-utils";
 import type { RoomSnapshot } from "@/lib/together/client";
 import { useT } from "@/lib/i18n";
@@ -48,7 +47,9 @@ export function WaitingForRoom(props: {
       className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/72 backdrop-blur-md"
     >
       <div className="flex max-w-sm flex-col items-center gap-5 px-8 text-center">
-        <LottiePlayer data={waitingAnim} className="h-28 w-28" />
+        <div className="h-28 w-28 text-white">
+          <HarborBoatMotion />
+        </div>
         <div className="flex flex-col gap-1.5">
           <h2 className="text-[18px] font-semibold text-white">
             {isHost ? t("Ready when you are") : t("Waiting for the host to start")}
@@ -70,7 +71,10 @@ export function WaitingForRoom(props: {
                   key={p.id}
                   className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] ${readyPillClass(p.ready, stale)}`}
                 >
-                  <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${readyDotClass(p.ready, stale)}`} />
+                  <span
+                    aria-hidden
+                    className={`h-1.5 w-1.5 rounded-full ${readyDotClass(p.ready, stale)}`}
+                  />
                   {p.name}
                   {p.id === clientId && t(" (you)")}
                   {!p.ready && stale && t(" · still loading")}
