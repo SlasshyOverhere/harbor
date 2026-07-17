@@ -7,7 +7,7 @@ declare const process: { env: Record<string, string | undefined> };
 
 export default defineConfig({
   staged: {
-    "*": "vp fmt",
+    "*.{cjs,css,html,js,json,jsonc,jsx,md,mdx,mjs,scss,toml,ts,tsx,yaml,yml}": "vp fmt",
   },
   fmt: {},
   lint: {
