@@ -236,6 +236,10 @@ impl ProxyState {
         self.hls.stop_session(session_id).await
     }
 
+    pub async fn stop_all_hls(&self) -> usize {
+        self.hls.stop_all().await
+    }
+
     pub async fn gc_idle(&self) -> usize {
         const PROXY_MAX_AGE: Duration = Duration::from_secs(3 * 60 * 60);
         const HLS_IDLE: Duration = Duration::from_secs(5 * 60);
@@ -255,6 +259,15 @@ impl ProxyState {
         removed += self.hls.evict_idle(HLS_IDLE).await;
         removed
     }
+}
+
+pub(crate) fn shutdown(app: &tauri::AppHandle) {
+    use tauri::Manager;
+
+    let state = app.state::<ProxyState>().inner().clone();
+    tauri::async_runtime::block_on(async move {
+        state.stop_all_hls().await;
+    });
 }
 
 pub(crate) fn lan_ip() -> Option<String> {

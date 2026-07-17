@@ -47,11 +47,12 @@ mod web_server;
 mod webview_helpers;
 
 pub(crate) fn shutdown_services(app: &tauri::AppHandle) {
-    crash_report::mark_clean_exit();
     thumbs::shutdown(app);
+    stream_proxy::shutdown(app);
     cast_server::stop();
     torrent_engine::stop();
     discord_rp::shutdown(app);
+    crash_report::mark_clean_exit();
 }
 
 pub static CLOSE_FLUSH_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

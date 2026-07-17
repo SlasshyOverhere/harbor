@@ -117,6 +117,17 @@ impl HlsState {
         true
     }
 
+    pub async fn stop_all(&self) -> usize {
+        let sessions: Vec<Arc<HlsSession>> = {
+            let mut map = self.sessions.write().await;
+            map.drain().map(|(_, session)| session).collect()
+        };
+        for session in &sessions {
+            stop_session_resources(session.clone()).await;
+        }
+        sessions.len()
+    }
+
     pub async fn evict_idle(&self, idle: Duration) -> usize {
         let now = Instant::now();
         let stale: Vec<Arc<HlsSession>> = {
@@ -657,5 +668,36 @@ duration=120.5\n";
         assert!(state.stop_session(&id).await);
         assert!(!temp_dir.exists());
         assert!(!state.stop_session(&id).await);
+    }
+
+    #[tokio::test]
+    async fn stop_all_removes_every_session_and_is_idempotent() {
+        let state = HlsState::new();
+        let mut temp_dirs = Vec::new();
+        for _ in 0..2 {
+            let id = Uuid::new_v4().to_string();
+            let temp_dir = std::env::temp_dir().join(format!("harbor-hls-test-{id}"));
+            std::fs::create_dir_all(&temp_dir).expect("create test HLS directory");
+            let session = Arc::new(HlsSession {
+                probe: Probe {
+                    duration_sec: 1.0,
+                    video_codec: "h264".into(),
+                    audio_codec: "aac".into(),
+                    width: 1,
+                    height: 1,
+                    fps: 1.0,
+                    video_bitrate: 1,
+                },
+                temp_dir: temp_dir.clone(),
+                last_access: std::sync::Mutex::new(Instant::now()),
+                process: tokio::sync::Mutex::new(None),
+            });
+            state.sessions.write().await.insert(id, session);
+            temp_dirs.push(temp_dir);
+        }
+
+        assert_eq!(state.stop_all().await, 2);
+        assert!(temp_dirs.iter().all(|path| !path.exists()));
+        assert_eq!(state.stop_all().await, 0);
     }
 }
