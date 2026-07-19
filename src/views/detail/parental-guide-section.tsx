@@ -215,11 +215,13 @@ export function ParentalGuideHeroCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-[16px] font-semibold text-ink">{t("Parental Guide")}</span>
-            <span
-              className={`text-[11px] font-bold uppercase tracking-wider ${SEVERITY[level].color}`}
-            >
-              {t(SEVERITY[level].label)}
-            </span>
+            {level !== "NONE" && (
+              <span
+                className={`text-[11px] font-bold uppercase tracking-wider ${SEVERITY[level].color}`}
+              >
+                {t(SEVERITY[level].label)}
+              </span>
+            )}
           </div>
           {guide.mpa_rating_reason && (
             <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug text-ink-muted">
