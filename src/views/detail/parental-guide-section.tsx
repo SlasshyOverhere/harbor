@@ -31,10 +31,12 @@ function worstSeverity(cats: GuideCategory[]): SeverityLevel {
 }
 
 function RatingBadge({ rating, color }: { rating: string; color: string }) {
+  const compact = rating.length > 3 ? rating.replace(/[ -]/g, "") : rating;
   return (
     <span
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border text-[15px] font-extrabold tracking-wide ${color}`}
+      className={`flex h-12 shrink-0 items-center justify-center rounded-xl border px-3 text-[15px] font-extrabold tracking-wide ${color}`}
       style={{
+        minWidth: rating.length > 3 ? 72 : 48,
         background:
           "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012)), rgba(6,8,14,0.42)",
         boxShadow:
@@ -42,7 +44,7 @@ function RatingBadge({ rating, color }: { rating: string; color: string }) {
         backdropFilter: "blur(2.5px) saturate(1.08)",
       }}
     >
-      {rating}
+      <span className="whitespace-nowrap">{compact}</span>
     </span>
   );
 }
