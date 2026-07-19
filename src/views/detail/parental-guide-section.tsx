@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { GuideCategory, ParentalGuide } from "@/lib/parental-guide";
 import { fetchParentalGuideMore } from "@/lib/parental-guide";
 import { useT } from "@/lib/i18n";
+import { openUrl } from "@/lib/window";
 
 type SeverityLevel = "NONE" | "MILD" | "MODERATE" | "SEVERE";
 
@@ -293,7 +294,7 @@ export function ParentalGuideHeroCard({
           <div className="mt-4 flex justify-end">
             <button
               type="button"
-              onClick={() => window.open("https://www.imdb.com/parentsguide", "_blank")}
+              onClick={() => openUrl(`https://www.imdb.com/title/${imdbId}/parentalguide`)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-white/70 transition-colors hover:text-white"
             >
               <Info size={12} />
