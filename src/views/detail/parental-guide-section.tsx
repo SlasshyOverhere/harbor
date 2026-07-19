@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, Eye, EyeOff, Info, Loader2 } from "lucide-react";
 import { useState } from "react";
-import type { GuideCategory, ParentalGuide } from "@/lib/parental-guide";
+import type { GuideCategory, GuideItem, ParentalGuide } from "@/lib/parental-guide";
 import { fetchParentalGuideMore } from "@/lib/parental-guide";
 import { useT } from "@/lib/i18n";
 import { openUrl } from "@/lib/window";
@@ -31,19 +31,18 @@ function worstSeverity(cats: GuideCategory[]): SeverityLevel {
   );
 }
 
+function mergeGuideItems(initial: GuideItem[], loaded: GuideItem[]): GuideItem[] {
+  const byId = new Map(initial.map((item) => [item.id, item]));
+  for (const item of loaded) byId.set(item.id, item);
+  return [...byId.values()];
+}
+
 function RatingBadge({ rating, color }: { rating: string; color: string }) {
   const compact = rating.length > 3 ? rating.replace(/[ -]/g, "") : rating;
   return (
     <span
-      className={`flex h-12 shrink-0 items-center justify-center rounded-xl border px-3 text-[15px] font-extrabold tracking-wide ${color}`}
-      style={{
-        minWidth: rating.length > 3 ? 72 : 48,
-        background:
-          "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012)), rgba(6,8,14,0.42)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.2)",
-        backdropFilter: "blur(2.5px) saturate(1.08)",
-      }}
+      className={`flex h-12 shrink-0 items-center justify-center rounded-xl border border-edge-soft bg-elevated/60 px-3 text-[15px] font-extrabold tracking-wide ${color}`}
+      style={{ minWidth: rating.length > 3 ? 72 : 48 }}
     >
       <span className="whitespace-nowrap">{compact}</span>
     </span>
@@ -79,13 +78,9 @@ function CategoryRow({
   const handleLoadMore = async () => {
     setLoadingMore(true);
     try {
-      const fetchType = mediaType === "movie" ? ("movie" as const) : ("tv" as const);
-      const guides = await Promise.all([
-        fetchParentalGuideMore(imdbId, fetchType, [
-          { id: category.id, total_items: totalAvailable },
-        ]),
-      ]);
-      const full = guides[0];
+      const full = await fetchParentalGuideMore(imdbId, mediaType, [
+        { id: category.id, total_items: totalAvailable },
+      ]).catch(() => null);
       const fresh = full?.categories.find((c) => c.id === category.id);
       if (fresh && fresh.items.length > totalItems) {
         onMoreLoaded(category.id, fresh.items);
@@ -100,12 +95,12 @@ function CategoryRow({
       <button
         type="button"
         onClick={() => hasItems && setOpen((v) => !v)}
-        className={`flex items-center gap-3 py-2.5 text-left ${hasItems ? "cursor-pointer hover:bg-white/[0.03]" : "cursor-default"} rounded-lg transition-colors`}
+        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors ${hasItems ? "cursor-pointer hover:bg-elevated/40" : "cursor-default"}`}
       >
         <span className={`h-2 w-2 shrink-0 rounded-full ${s.dot}`} />
         <span className="min-w-0 flex-1 text-[13.5px] font-medium text-ink">{category.title}</span>
         <span className={`shrink-0 text-[11px] font-bold uppercase tracking-wider ${s.color}`}>
-          {s.label}
+          {t(s.label)}
         </span>
         {hasItems && (
           <span className="shrink-0 text-ink-muted">
@@ -115,22 +110,15 @@ function CategoryRow({
       </button>
 
       {open && (
-        <div className="mb-2 ml-5 flex flex-col gap-2 border-l border-white/[0.06] pl-4">
+        <div className="mt-3 mb-4 ml-5 flex flex-col gap-2 border-l border-edge-soft/60 pl-4">
           {visibleItems.length > 0 ? (
             <>
               {visibleItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-2.5 rounded-lg border border-white/[0.08] px-3 py-2.5 text-[12.5px] leading-relaxed text-white/95"
-                  style={{
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), rgba(6,8,14,0.42)",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.18)",
-                    backdropFilter: "blur(2.5px) saturate(1.08)",
-                  }}
+                  className="flex items-start gap-2.5 rounded-lg border border-edge-soft bg-elevated/30 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink"
                 >
-                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-white/70" />
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-ink-muted" />
                   <span className="flex-1">{item.text}</span>
                 </div>
               ))}
@@ -144,7 +132,7 @@ function CategoryRow({
                   type="button"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] py-2 text-[11.5px] font-medium text-ink-muted transition-colors hover:bg-white/[0.06] hover:text-ink disabled:cursor-wait disabled:opacity-60"
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-edge-soft bg-elevated/30 py-2 text-[11.5px] font-medium text-ink-muted transition-colors hover:bg-elevated/60 hover:text-ink disabled:cursor-wait disabled:opacity-60"
                 >
                   {loadingMore ? (
                     <Loader2 size={11} className="animate-spin" />
@@ -189,16 +177,13 @@ export function ParentalGuideHeroCard({
     ...guide,
     categories: guide.categories.map((c) => ({
       ...c,
-      items: c.items.concat(extraItems[c.id] ?? []),
+      items: mergeGuideItems(c.items, extraItems[c.id] ?? []),
     })),
   };
 
   const level = worstSeverity(merged.categories);
 
-  const visibleItemTotal = merged.categories.reduce(
-    (n, c) => n + c.items.filter((i) => !i.is_spoiler).length,
-    0,
-  );
+  const totalItems = merged.categories.reduce((n, c) => n + c.total_items, 0);
 
   const sorted = [...merged.categories].sort((a, b) => {
     const order: Record<string, number> = { SEVERE: 0, MODERATE: 1, MILD: 2, NONE: 3 };
@@ -218,47 +203,42 @@ export function ParentalGuideHeroCard({
 
   return (
     <div
-      className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 backdrop-blur-xl"
-      style={{
-        background:
-          "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)), rgba(6,8,14,0.62)",
-        boxShadow:
-          "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.32), 0 10px 28px rgba(0,0,0,0.48)",
-      }}
+      id="parental-guide"
+      className="w-full max-w-md overflow-hidden rounded-2xl border border-edge-soft bg-elevated/40 shadow-[0_18px_50px_-22px_rgba(0,0,0,0.65)]"
     >
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-elevated/50"
       >
         <RatingBadge rating={guide.mpa_rating ?? level} color={SEVERITY[level].color} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-[16px] font-semibold text-white">{t("Parental Guide")}</span>
+            <span className="text-[16px] font-semibold text-ink">{t("Parental Guide")}</span>
             <span
               className={`text-[11px] font-bold uppercase tracking-wider ${SEVERITY[level].color}`}
             >
-              {SEVERITY[level].label}
+              {t(SEVERITY[level].label)}
             </span>
           </div>
           {guide.mpa_rating_reason && (
-            <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug text-white/65">
+            <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug text-ink-muted">
               {guide.mpa_rating_reason}
             </p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white/70">
-            {t("{n} notes", { n: totalSpoilers + visibleItemTotal })}
+          <span className="rounded-md border border-edge-soft bg-elevated/50 px-2 py-1 text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
+            {t("{n} notes", { n: totalItems })}
           </span>
-          <span className="text-white/60">
+          <span className="text-ink-muted">
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </span>
         </div>
       </button>
 
       {expanded && (
-        <div className="border-t border-white/[0.06] px-5 pb-5 pt-4">
+        <div className="border-t border-edge-soft px-5 pb-5 pt-4">
           <div className="mb-3 flex justify-end">
             {totalSpoilers > 0 && (
               <button
@@ -267,10 +247,14 @@ export function ParentalGuideHeroCard({
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                   showSpoilers
                     ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                    : "border-white/[0.08] bg-white/[0.03] text-white/70 hover:bg-white/[0.06] hover:text-white"
+                    : "border-edge-soft bg-elevated/30 text-ink-muted hover:bg-elevated/60 hover:text-ink"
                 }`}
               >
-                {showSpoilers ? <Eye size={11} strokeWidth={2.2} /> : <EyeOff size={11} strokeWidth={2.2} />}
+                {showSpoilers ? (
+                  <Eye size={11} strokeWidth={2.2} />
+                ) : (
+                  <EyeOff size={11} strokeWidth={2.2} />
+                )}
                 {showSpoilers
                   ? t("Spoilers on ({n})", { n: totalSpoilers })
                   : t("Show spoilers ({n})", { n: totalSpoilers })}
@@ -278,7 +262,7 @@ export function ParentalGuideHeroCard({
             )}
           </div>
 
-          <div className="flex flex-col divide-y divide-white/[0.04]">
+          <div className="flex flex-col divide-y divide-edge-soft/50">
             {sorted.map((cat) => (
               <CategoryRow
                 key={cat.id}
@@ -295,7 +279,7 @@ export function ParentalGuideHeroCard({
             <button
               type="button"
               onClick={() => openUrl(`https://www.imdb.com/title/${imdbId}/parentalguide`)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-white/70 transition-colors hover:text-white"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-ink-muted transition-colors hover:bg-elevated/50 hover:text-ink"
             >
               <Info size={12} />
               {t("View on IMDb")}

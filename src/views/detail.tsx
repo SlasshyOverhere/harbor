@@ -1165,7 +1165,7 @@ export function DetailView({
         <Pill
           onClick={() => {
             document
-              .querySelector("[data-parental-guide]")
+              .getElementById("parental-guide")
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         >
@@ -1520,7 +1520,7 @@ export function DetailView({
         {(overview || heroAwardsInline || parentalGuide) && (
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
             {overview && <Synopsis text={overview} />}
-            <div className="flex flex-col gap-4 lg:ms-auto lg:shrink-0">
+            <div className="flex flex-col gap-4 lg:ms-auto lg:w-[28rem] lg:shrink-0">
               {parentalGuide && (
                 <ParentalGuideHeroCard
                   guide={parentalGuide}
