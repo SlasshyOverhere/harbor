@@ -33,7 +33,14 @@ function worstSeverity(cats: GuideCategory[]): SeverityLevel {
 function RatingBadge({ rating, color }: { rating: string; color: string }) {
   return (
     <span
-      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md border px-1.5 text-[11px] font-extrabold tracking-wide ${color} bg-white/[0.06]`}
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border text-[15px] font-extrabold tracking-wide ${color}`}
+      style={{
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012)), rgba(6,8,14,0.42)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.2)",
+        backdropFilter: "blur(2.5px) saturate(1.08)",
+      }}
     >
       {rating}
     </span>
@@ -111,9 +118,16 @@ function CategoryRow({
               {visibleItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2.5 text-[12.5px] leading-relaxed text-ink"
+                  className="flex items-start gap-2.5 rounded-lg border border-white/[0.08] px-3 py-2.5 text-[12.5px] leading-relaxed text-white/95"
+                  style={{
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), rgba(6,8,14,0.42)",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.18)",
+                    backdropFilter: "blur(2.5px) saturate(1.08)",
+                  }}
                 >
-                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-ink-subtle/70" />
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-white/70" />
                   <span className="flex-1">{item.text}</span>
                 </div>
               ))}
@@ -166,7 +180,6 @@ export function ParentalGuideHeroCard({
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [showSpoilers, setShowSpoilers] = useState(false);
-  const [severityFilter, setSeverityFilter] = useState<SeverityLevel | "ALL">("ALL");
   const [extraItems, setExtraItems] = useState<Record<string, GuideCategory["items"]>>({});
 
   const merged = {
@@ -179,6 +192,11 @@ export function ParentalGuideHeroCard({
 
   const level = worstSeverity(merged.categories);
 
+  const visibleItemTotal = merged.categories.reduce(
+    (n, c) => n + c.items.filter((i) => !i.is_spoiler).length,
+    0,
+  );
+
   const sorted = [...merged.categories].sort((a, b) => {
     const order: Record<string, number> = { SEVERE: 0, MODERATE: 1, MILD: 2, NONE: 3 };
     return (
@@ -186,39 +204,34 @@ export function ParentalGuideHeroCard({
     );
   });
 
-  const filtered =
-    severityFilter === "ALL"
-      ? sorted
-      : sorted.filter((c) => resolveSeverity(c.severity?.vote_type) === severityFilter);
-
-  const totalItems = merged.categories.reduce((n, c) => n + c.items.length, 0);
   const totalSpoilers = merged.categories.reduce(
     (n, c) => n + c.items.filter((i) => i.is_spoiler).length,
     0,
   );
-
-  const counts = {
-    SEVERE: sorted.filter((c) => c.severity?.vote_type === "SEVERE").length,
-    MODERATE: sorted.filter((c) => c.severity?.vote_type === "MODERATE").length,
-    MILD: sorted.filter((c) => c.severity?.vote_type === "MILD").length,
-    NONE: sorted.filter((c) => !c.severity || c.severity.vote_type === "NONE").length,
-  };
 
   const handleMoreLoaded = (id: string, items: GuideCategory["items"]) => {
     setExtraItems((prev) => ({ ...prev, [id]: items }));
   };
 
   return (
-    <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/[0.06] bg-black/55 backdrop-blur-xl">
+    <div
+      className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 backdrop-blur-xl"
+      style={{
+        background:
+          "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)), rgba(6,8,14,0.62)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.32), 0 10px 28px rgba(0,0,0,0.48)",
+      }}
+    >
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-start gap-4 px-5 py-5 text-left transition-colors hover:bg-white/[0.03]"
       >
         <RatingBadge rating={guide.mpa_rating ?? level} color={SEVERITY[level].color} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold text-ink">{t("Parental Guide")}</span>
+            <span className="text-[16px] font-semibold text-white">{t("Parental Guide")}</span>
             <span
               className={`text-[11px] font-bold uppercase tracking-wider ${SEVERITY[level].color}`}
             >
@@ -226,50 +239,44 @@ export function ParentalGuideHeroCard({
             </span>
           </div>
           {guide.mpa_rating_reason && (
-            <p className="mt-1 line-clamp-1 text-[12.5px] text-ink-muted">
+            <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug text-white/65">
               {guide.mpa_rating_reason}
             </p>
           )}
         </div>
-        <span className="shrink-0 text-ink-muted">
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[10.5px] font-bold uppercase tracking-wider text-white/70">
+            {t("{n} notes", { n: totalSpoilers + visibleItemTotal })}
+          </span>
+          <span className="text-white/60">
+            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </span>
+        </div>
       </button>
 
       {expanded && (
         <div className="border-t border-white/[0.06] px-5 pb-5 pt-4">
-          <div className="mb-3 flex flex-wrap items-center gap-1.5">
-            <FilterChip active={severityFilter === "ALL"} onClick={() => setSeverityFilter("ALL")}>
-              All {guide.categories.length}
-            </FilterChip>
-            <FilterChip
-              active={severityFilter === "SEVERE"}
-              onClick={() => setSeverityFilter("SEVERE")}
-              accent="red"
-              count={counts.SEVERE}
-            >
-              Severe
-            </FilterChip>
-            <FilterChip
-              active={severityFilter === "MODERATE"}
-              onClick={() => setSeverityFilter("MODERATE")}
-              accent="amber"
-              count={counts.MODERATE}
-            >
-              Moderate
-            </FilterChip>
-            <FilterChip
-              active={severityFilter === "MILD"}
-              onClick={() => setSeverityFilter("MILD")}
-              accent="emerald"
-              count={counts.MILD}
-            >
-              Mild
-            </FilterChip>
+          <div className="mb-3 flex justify-end">
+            {totalSpoilers > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowSpoilers((v) => !v)}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                  showSpoilers
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                    : "border-white/[0.08] bg-white/[0.03] text-white/70 hover:bg-white/[0.06] hover:text-white"
+                }`}
+              >
+                {showSpoilers ? <Eye size={11} strokeWidth={2.2} /> : <EyeOff size={11} strokeWidth={2.2} />}
+                {showSpoilers
+                  ? t("Spoilers on ({n})", { n: totalSpoilers })
+                  : t("Show spoilers ({n})", { n: totalSpoilers })}
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col divide-y divide-white/[0.04]">
-            {filtered.map((cat) => (
+            {sorted.map((cat) => (
               <CategoryRow
                 key={cat.id}
                 category={cat}
@@ -281,35 +288,11 @@ export function ParentalGuideHeroCard({
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-2">
-            {totalSpoilers > 0 ? (
-              <button
-                type="button"
-                onClick={() => setShowSpoilers((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors ${
-                  showSpoilers
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                    : "border-white/[0.06] bg-white/[0.03] text-ink-muted hover:bg-white/[0.06] hover:text-ink"
-                }`}
-              >
-                {showSpoilers ? (
-                  <Eye size={12} strokeWidth={2.2} />
-                ) : (
-                  <EyeOff size={12} strokeWidth={2.2} />
-                )}
-                {showSpoilers
-                  ? t("Spoilers on ({n})", { n: totalSpoilers })
-                  : t("Show spoilers ({n})", { n: totalSpoilers })}
-              </button>
-            ) : (
-              <span className="text-[11px] tabular-nums text-ink-muted/60">
-                {totalItems} {t("notes")}
-              </span>
-            )}
+          <div className="mt-4 flex justify-end">
             <button
               type="button"
               onClick={() => window.open("https://www.imdb.com/parentsguide", "_blank")}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-ink-muted transition-colors hover:text-ink"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium text-white/70 transition-colors hover:text-white"
             >
               <Info size={12} />
               {t("View on IMDb")}
@@ -318,39 +301,5 @@ export function ParentalGuideHeroCard({
         </div>
       )}
     </div>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-  accent,
-  count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  accent?: "red" | "amber" | "emerald";
-  count?: number;
-}) {
-  const accentColors = {
-    red: "border-red-500/30 bg-red-500/10 text-red-400",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-  };
-  const idle =
-    "border-white/[0.06] bg-white/[0.03] text-ink-muted hover:bg-white/[0.06] hover:text-ink";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] font-medium transition-colors ${
-        active ? (accent ? accentColors[accent] : "border-white/20 bg-white/10 text-ink") : idle
-      }`}
-    >
-      {children}
-      {count !== undefined && count > 0 && <span className="tabular-nums opacity-70">{count}</span>}
-    </button>
   );
 }
