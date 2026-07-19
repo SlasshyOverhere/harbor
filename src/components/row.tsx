@@ -13,12 +13,25 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useSettings } from "@/lib/settings";
+import { resetPosterDock as resetPosterDockItems, updatePosterDock } from "@/lib/poster-dock";
 import { useView } from "@/lib/view";
 import { ThreeLiquidGlassSurface } from "@/components/ThreeLiquidGlassSurface";
 
 const GAP = 20;
 const EAGER_COUNT = 6;
 const NEAR_MARGIN = "300px";
+
+function isRtlTrack(el: HTMLDivElement): boolean {
+  return getComputedStyle(el).direction === "rtl";
+}
+
+function readPos(el: HTMLDivElement): number {
+  return isRtlTrack(el) ? -el.scrollLeft : el.scrollLeft;
+}
+
+function writePos(el: HTMLDivElement, pos: number): void {
+  el.scrollLeft = isRtlTrack(el) ? -pos : pos;
+}
 
 export type RowShape = "portrait" | "landscape" | "service" | "rank" | "tile";
 
@@ -144,6 +157,7 @@ export function Row({
   const { settings } = useSettings();
   const t = useT();
   const effMin = Math.max(72, Math.round(min * settings.posterScale));
+  const dockEnabled = shape === "portrait" && settings.posterDockMagnification;
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackEl, setTrackEl] = useState<HTMLDivElement | null>(null);
@@ -166,12 +180,6 @@ export function Row({
     if (available <= 0) return;
     const fits = Math.max(1, Math.floor((available + GAP) / (effMin + GAP)));
     setCellWidth((available - (fits - 1) * GAP) / fits);
-  };
-
-  const isRtlTrack = (el: HTMLDivElement) => getComputedStyle(el).direction === "rtl";
-  const readPos = (el: HTMLDivElement) => (isRtlTrack(el) ? -el.scrollLeft : el.scrollLeft);
-  const writePos = (el: HTMLDivElement, pos: number) => {
-    el.scrollLeft = isRtlTrack(el) ? -pos : pos;
   };
 
   const measureScroll = () => {
@@ -320,6 +328,54 @@ export function Row({
   const rafId = useRef<number | null>(null);
   const strideRef = useRef(effMin + GAP);
   strideRef.current = (cellWidth ?? effMin) + GAP;
+  const dockFrameRef = useRef<number | null>(null);
+  const dockPointerXRef = useRef<number | null>(null);
+
+  const resetPosterDock = useCallback(() => {
+    const track = trackRef.current;
+    if (track) resetPosterDockItems(track);
+  }, []);
+
+  const applyPosterDock = useCallback(() => {
+    dockFrameRef.current = null;
+    const track = trackRef.current;
+    const pointerX = dockPointerXRef.current;
+    if (!dockEnabled || !track || pointerX === null) {
+      resetPosterDock();
+      return;
+    }
+
+    updatePosterDock({
+      track,
+      pointerX,
+      cellWidth: cellWidth ?? effMin,
+      gap: GAP,
+      scrollPosition: readPos(track),
+      rtl: isRtlTrack(track),
+    });
+  }, [cellWidth, dockEnabled, effMin, resetPosterDock]);
+
+  const schedulePosterDock = useCallback(
+    (clientX: number) => {
+      dockPointerXRef.current = clientX;
+      if (dockFrameRef.current === null) {
+        dockFrameRef.current = requestAnimationFrame(applyPosterDock);
+      }
+    },
+    [applyPosterDock],
+  );
+
+  useEffect(
+    () => () => {
+      if (dockFrameRef.current !== null) cancelAnimationFrame(dockFrameRef.current);
+      resetPosterDock();
+    },
+    [resetPosterDock],
+  );
+
+  useEffect(() => {
+    if (!dockEnabled) resetPosterDock();
+  }, [dockEnabled, resetPosterDock]);
 
   const cancelGlide = () => {
     if (rafId.current != null) {
@@ -358,6 +414,8 @@ export function Row({
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dockPointerXRef.current = null;
+    resetPosterDock();
     if (e.button !== 0 || e.pointerType === "touch") return;
     if (!(e.target as Element).closest("button")) return;
     const el = trackRef.current;
@@ -378,6 +436,9 @@ export function Row({
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     const el = trackRef.current;
+    if (dockEnabled && e.pointerType !== "touch" && e.buttons === 0 && !d.active) {
+      schedulePosterDock(e.clientX);
+    }
     if (!d.active || !el) return;
     const dx = e.clientX - d.startX;
     if (!d.moved && Math.abs(dx) < 6) return;
@@ -483,11 +544,22 @@ export function Row({
             ref={trackCb}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
+            onPointerUp={(event) => {
+              endDrag(event);
+              if (dockEnabled && event.pointerType !== "touch") schedulePosterDock(event.clientX);
+            }}
+            onPointerCancel={(event) => {
+              endDrag(event);
+              dockPointerXRef.current = null;
+              resetPosterDock();
+            }}
+            onPointerLeave={() => {
+              dockPointerXRef.current = null;
+              resetPosterDock();
+            }}
             onClickCapture={onClickCapture}
             onDragStart={(e) => e.preventDefault()}
-            className="harbor-row-track grid grid-flow-col items-start gap-5 overflow-x-auto p-5 -m-5 scroll-ps-5 scroll-pe-5 [scroll-snap-type:x_mandatory] *:snap-start [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] [overflow-anchor:none] overscroll-x-contain [&_img]:select-none [&_img]:[-webkit-user-drag:none]"
+            className="harbor-row-track grid grid-flow-col items-start gap-5 overflow-x-auto px-5 pb-5 pt-8 -mx-5 -mb-5 -mt-8 scroll-ps-5 scroll-pe-5 [scroll-snap-type:x_mandatory] *:snap-start [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] [overflow-anchor:none] overscroll-x-contain [&_img]:select-none [&_img]:[-webkit-user-drag:none]"
             style={{
               gridAutoColumns: cellWidth != null ? `${cellWidth}px` : `${effMin}px`,
               willChange: "transform",
