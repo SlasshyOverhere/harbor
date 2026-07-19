@@ -1,5 +1,9 @@
-import { expect, test } from "vite-plus/test";
-import { createParentalGuideClient, type ParentalGuide } from "../src/lib/parental-guide.ts";
+// @ts-nocheck -- Node's test modules are not included in the application tsconfig.
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createParentalGuideClient, type ParentalGuide } from "../src/lib/parental-guide-client.ts";
+
+const BASE = "https://parental-guide.test";
 
 function guide(id: string, itemCount: number): ParentalGuide {
   return {
@@ -38,11 +42,11 @@ test("does not cache failed parental-guide requests", async () => {
   const client = createParentalGuideClient(async () => {
     calls += 1;
     return calls === 1 ? response(guide("tt1234567", 5), false) : response(guide("tt1234567", 5));
-  });
+  }, BASE);
 
-  expect(await client.fetchParentalGuide("tt1234567", "movie")).toBeNull();
-  expect((await client.fetchParentalGuide("tt1234567", "movie"))?.id).toBe("tt1234567");
-  expect(calls).toBe(2);
+  assert.equal(await client.fetchParentalGuide("tt1234567", "movie"), null);
+  assert.equal((await client.fetchParentalGuide("tt1234567", "movie"))?.id, "tt1234567");
+  assert.equal(calls, 2);
 });
 
 test("deduplicates concurrent initial guide requests", async () => {
@@ -54,24 +58,28 @@ test("deduplicates concurrent initial guide requests", async () => {
   const client = createParentalGuideClient(async () => {
     calls += 1;
     return pendingResponse;
-  });
+  }, BASE);
 
   const first = client.fetchParentalGuide("tt1234567", "movie");
   const second = client.fetchParentalGuide("tt1234567", "movie");
   resolveResponse(response(guide("tt1234567", 5)));
 
-  expect((await first)?.id).toBe("tt1234567");
-  expect((await second)?.id).toBe("tt1234567");
-  expect(calls).toBe(1);
+  assert.equal((await first)?.id, "tt1234567");
+  assert.equal((await second)?.id, "tt1234567");
+  assert.equal(calls, 1);
 });
 
 test("refreshes guide recency before evicting the least recently used entry", async () => {
   const calls = new Map<string, number>();
-  const client = createParentalGuideClient(async (input) => {
-    const id = new URL(String(input)).pathname.split("/")[2];
-    calls.set(id, (calls.get(id) ?? 0) + 1);
-    return response(guide(id, 5));
-  }, 2);
+  const client = createParentalGuideClient(
+    async (input) => {
+      const id = new URL(String(input)).pathname.split("/")[2];
+      calls.set(id, (calls.get(id) ?? 0) + 1);
+      return response(guide(id, 5));
+    },
+    BASE,
+    2,
+  );
 
   await client.fetchParentalGuide("tt0000001", "movie");
   await client.fetchParentalGuide("tt0000002", "movie");
@@ -79,9 +87,9 @@ test("refreshes guide recency before evicting the least recently used entry", as
   await client.fetchParentalGuide("tt0000003", "movie");
   await client.fetchParentalGuide("tt0000002", "movie");
 
-  expect(calls.get("tt0000001")).toBe(1);
-  expect(calls.get("tt0000002")).toBe(2);
-  expect(calls.get("tt0000003")).toBe(1);
+  assert.equal(calls.get("tt0000001"), 1);
+  assert.equal(calls.get("tt0000002"), 2);
+  assert.equal(calls.get("tt0000003"), 1);
 });
 
 test("retains expanded guide results and avoids fetching them again", async () => {
@@ -90,24 +98,27 @@ test("retains expanded guide results and avoids fetching them again", async () =
     calls += 1;
     const limit = Number(new URL(String(input)).searchParams.get("items_per_category"));
     return response(guide("tt1234567", limit));
-  });
+  }, BASE);
 
-  expect((await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length).toBe(
+  assert.equal(
+    (await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length,
     5,
   );
-  expect(
+  assert.equal(
     (
       await client.fetchParentalGuideMore("tt1234567", "movie", [
         { id: "violence", total_items: 10 },
       ])
     )?.categories[0].items.length,
-  ).toBe(10);
-  expect((await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length).toBe(
+    10,
+  );
+  assert.equal(
+    (await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length,
     10,
   );
   await client.fetchParentalGuideMore("tt1234567", "movie", [{ id: "violence", total_items: 10 }]);
 
-  expect(calls).toBe(2);
+  assert.equal(calls, 2);
 });
 
 test("retries a failed expanded-guide request without discarding cached items", async () => {
@@ -118,23 +129,26 @@ test("retries a failed expanded-guide request without discarding cached items", 
     return calls === 2
       ? response(guide("tt1234567", limit), false)
       : response(guide("tt1234567", limit));
-  });
+  }, BASE);
 
   await client.fetchParentalGuide("tt1234567", "movie");
-  expect(
+  assert.equal(
     await client.fetchParentalGuideMore("tt1234567", "movie", [
       { id: "violence", total_items: 10 },
     ]),
-  ).toBeNull();
-  expect((await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length).toBe(
+    null,
+  );
+  assert.equal(
+    (await client.fetchParentalGuide("tt1234567", "movie"))?.categories[0].items.length,
     5,
   );
-  expect(
+  assert.equal(
     (
       await client.fetchParentalGuideMore("tt1234567", "movie", [
         { id: "violence", total_items: 10 },
       ])
     )?.categories[0].items.length,
-  ).toBe(10);
-  expect(calls).toBe(3);
+    10,
+  );
+  assert.equal(calls, 3);
 });
